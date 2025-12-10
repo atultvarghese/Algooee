@@ -2,12 +2,14 @@
 
 Welcome to the Algoooeee project! This repository is for algorithmic trading implementations. We use a standard fork-and-pull-request workflow for all contributions.
 
+[Join our Discord Community](https://discord.gg/8bGeKNdr)
+
 ## Prerequisites
 
 Before you begin.
 
-- **Install Git**: You can download and install the latest version from the official [Git-SCM website](git-scm.com).
-- **Install Python**: You can download and install the python.3.14.xx version from the official [Python-ORG website](www.python.org/downloads).
+- **Install Git**: You can download and install the latest version from the official [Git-SCM website](https://git-scm.com/install/).
+- **Install Python**: You can download and install the python.3.14.xx version from the official [Python-ORG website](https://www.python.org/downloads/).
 
 ## Setup Instructions
 
