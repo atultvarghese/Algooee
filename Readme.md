@@ -30,10 +30,32 @@ Now, you need to download your personal fork to your local machine.
 1.  Go to your _forked_ repository page on GitHub.
 2.  Click the green **"Code"** button and copy the HTTPS URL.
 
+
 # Algooee
 
 Lightweight stock prediction project with a FastAPI backend and a minimal UI.
 
+## Quick Start
+
+Follow these steps to set up and run the project:
+
+### 1. Create a Virtual Environment and Install Dependencies
+
+Run the following commands based on your operating system:
+
+- **macOS/Linux**:
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    python3 -m pip install -r requirements.txt
+    ```
+
+- **Windows**:
+    ```powershell
+    python -m venv venv
+    venv\Scripts\Activate.ps1
+    python -m pip install -r requirements.txt
+    ```
 ## Quick Start
 
 Follow these steps to set up and run the project:
@@ -67,13 +89,27 @@ Open `.env` and add your `UPSTOX_API_TOKEN`:
 ### 3. Run the Server (Development)
 
 Start the development server using the following command:
+### 2. Configure Environment Variables
+
+Open `.env` and add your `UPSTOX_API_TOKEN`:
+
+```bash
+.env 
+```
+
+### 3. Run the Server (Development)
+
+Start the development server using the following command:
 
 ```powershell
 uvicorn server:app --reload
 ```
 
+### 4. Open the UI in Your Browser
+
+Navigate to `http://localhost:8000/` to access the web UI.
+
 ## Notes
 
-- This repository now exposes only the API; the previous HTML-based UI has been removed. The React/Vite frontend lives separately in the `src/` directory and is served independently during development.
-- Unused Python dependencies such as `jinja2` and `aiofiles` have been removed from `requirements.txt` since no templates or static files are served.
-- If you don't have an Upstox token, prediction endpoints will return a 503.
+- The web UI is served from `app/templates/index.html` and static assets are in `app/static/`.
+- If you don't have an Upstox token, the UI will load but prediction calls will return a 503.
