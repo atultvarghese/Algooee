@@ -29,33 +29,54 @@ Now, you need to download your personal fork to your local machine.
 
 1.  Go to your _forked_ repository page on GitHub.
 2.  Click the green **"Code"** button and copy the HTTPS URL.
+
 # Algooee
 
 Lightweight stock prediction project with a FastAPI backend and a minimal UI.
 
-Quick start
------------
+## Quick Start
 
-1. Create a virtual environment and install dependencies:
+Follow these steps to set up and run the project:
 
-```powershell
-python -m venv venv
-venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+### 1. Create a Virtual Environment and Install Dependencies
+
+Run the following commands based on your operating system:
+
+- **macOS/Linux**:
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    python3 -m pip install -r requirements.txt
+    ```
+
+- **Windows**:
+    ```powershell
+    python -m venv venv
+    venv\Scripts\Activate.ps1
+    python -m pip install -r requirements.txt
+    ```
+
+### 2. Configure Environment Variables
+
+Open `.env` and add your `UPSTOX_API_TOKEN`:
+
+```bash
+.env 
 ```
 
-2. Copy `.env.example` to `.env` and add your `UPSTOX_API_TOKEN`.
+### 3. Run the Server (Development)
 
-3. Run the server (development):
+Start the development server using the following command:
 
 ```powershell
 uvicorn server:app --reload
 ```
 
-4. Open the UI in your browser: `http://localhost:8000/`.
+### 4. Open the UI in Your Browser
 
-Notes
------
+Navigate to `http://localhost:8000/` to access the web UI.
+
+## Notes
+
 - The web UI is served from `app/templates/index.html` and static assets are in `app/static/`.
 - If you don't have an Upstox token, the UI will load but prediction calls will return a 503.
-
