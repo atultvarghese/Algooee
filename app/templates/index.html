@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Algooee — Stock Predictor</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Algooee — Stock Predictor</h1>
+
+    <form id="predict-form">
+      <label for="isin">ISIN</label>
+      <input id="isin" name="isin" value="INE002A01018" />
+
+      <label for="start_date">Start date</label>
+      <input id="start_date" name="start_date" type="date" />
+
+      <label for="end_date">End date</label>
+      <input id="end_date" name="end_date" type="date" />
+
+      <button type="submit">Predict Next Day High</button>
+    </form>
+
+    <div id="result" class="card hidden">
+      <h2>Prediction</h2>
+      <p id="predicted"></p>
+    </div>
+
+    <div class="note">Interactive API docs: <a href="/docs" target="_blank">/docs</a></div>
+  </div>
+
+  <script>
+    // Set default dates
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const oneYearAgo = new Date(today);
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+
+    document.getElementById('start_date').valueAsDate = oneYearAgo;
+    document.getElementById('end_date').valueAsDate = yesterday;
+  </script>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
