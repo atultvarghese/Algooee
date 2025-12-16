@@ -31,6 +31,19 @@
     <div class="note">Interactive API docs: <a href="/docs" target="_blank">/docs</a></div>
   </div>
 
+  <script>
+    // Set default dates
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const oneYearAgo = new Date(today);
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+
+    document.getElementById('start_date').valueAsDate = oneYearAgo;
+    document.getElementById('end_date').valueAsDate = yesterday;
+  </script>
+
   <script src="/static/js/app.js"></script>
 </body>
 </html>
