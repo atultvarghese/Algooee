@@ -55,7 +55,7 @@ def check_stock(isin):
         predictor = Prediction(df)
         predictor.feature_engineering()
         X_test, y_test, preds = predictor.train_model()
-        # predictor.plot_results(y_test, preds)
+        predictor.plot_results(y_test, preds)
         predictor.predict_next_day()
 
 

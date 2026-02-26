@@ -1,6 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
 import pandas as pd
@@ -13,9 +11,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Mount static files and templates
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-templates = Jinja2Templates(directory="app/templates")
 
 # Request/Response Models
 class StockPredictionRequest(BaseModel):
@@ -43,15 +38,9 @@ except ValueError as e:
 
 # API Routes
 @app.get("/", tags=["UI"])
-async def root(request: Request):
-    """Serve the UI as the main home page"""
-    return templates.TemplateResponse("index.html", {"request": request})
-
-
-@app.get("/ui", tags=["UI"])
-async def ui(request: Request):
-    """Serve the single-page UI for interacting with the API"""
-    return templates.TemplateResponse("index.html", {"request": request})
+async def root():
+    """Root endpoint – UI removed, API only."""
+    return {"message": "This server provides the Algooee API. Frontend moved to a separate React/Vite application."}
 
 @app.get("/health", tags=["Health"])
 async def health():

@@ -1,5 +1,3 @@
-aiofiles
-jinja2
 fastapi
 matplotlib
 pandas

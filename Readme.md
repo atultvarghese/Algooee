@@ -72,11 +72,8 @@ Start the development server using the following command:
 uvicorn server:app --reload
 ```
 
-### 4. Open the UI in Your Browser
-
-Navigate to `http://localhost:8000/` to access the web UI.
-
 ## Notes
 
-- The web UI is served from `app/templates/index.html` and static assets are in `app/static/`.
-- If you don't have an Upstox token, the UI will load but prediction calls will return a 503.
+- This repository now exposes only the API; the previous HTML-based UI has been removed. The React/Vite frontend lives separately in the `src/` directory and is served independently during development.
+- Unused Python dependencies such as `jinja2` and `aiofiles` have been removed from `requirements.txt` since no templates or static files are served.
+- If you don't have an Upstox token, prediction endpoints will return a 503.
