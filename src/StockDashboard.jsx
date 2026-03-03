@@ -7,13 +7,7 @@ import {
 // ── Config ──────────────────────────────────────────────────────────────────
 const API_BASE = "http://localhost:8000"; // ← change to your backend URL
 
-const MOCK_STOCKS = [
-  { ticker: "AAPL", name: "Apple Inc.", sector: "Technology" },
-  { ticker: "TSLA", name: "Tesla Inc.", sector: "Automotive" },
-  { ticker: "NVDA", name: "NVIDIA Corp.", sector: "Semiconductors" },
-  { ticker: "MSFT", name: "Microsoft Corp.", sector: "Technology" },
-  { ticker: "AMZN", name: "Amazon.com Inc.", sector: "E-Commerce" },
-];
+// `stocks` now comes exclusively from the backend; no built-in mock list.
 
 function generateMockData(ticker) {
   const seed = ticker.charCodeAt(0);
@@ -109,7 +103,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-function StockCard({ ticker, selected, data, onClick }) {
+function StockCard({ ticker, selected, data, onClick, name }) {
   if (!data) return null;
   const up = data.changePct >= 0;
   return (
@@ -121,8 +115,8 @@ function StockCard({ ticker, selected, data, onClick }) {
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: selected ? "#00e5a0" : "#cde" }}>{ticker}</div>
-          <div style={{ fontSize: 10, color: "#556677", marginTop: 2 }}>{data.name || ""}</div>
+          <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: selected ? "#00e5a0" : "#cde" }}>{name || data.name || ticker}</div>
+          <div style={{ fontSize: 10, color: "#556677", marginTop: 2 }}>{ticker}</div>
         </div>
         <SignalBadge signal={data.signal} color={data.signalColor} />
       </div>
@@ -136,8 +130,8 @@ function StockCard({ ticker, selected, data, onClick }) {
 
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 export default function StockDashboard() {
-  const [stocks] = useState(MOCK_STOCKS);
-  const [selected, setSelected] = useState("AAPL");
+  const [stocks, setStocks] = useState([]);
+  const [selected, setSelected] = useState("");
   const [stockData, setStockData] = useState({});
   const [loading, setLoading] = useState(false);
   const [apiMode, setApiMode] = useState(false); // toggle between mock and real API
@@ -148,104 +142,96 @@ export default function StockDashboard() {
     if (stockData[ticker]) return;
     setLoading(true);
     try {
-      if (apiMode) {
-        // In api mode we expect the "ticker" to be the ISIN (or remote mapping will set it)
-        const isin = ticker;
-        // Prepare date range: last 30 days
-        const end = new Date();
-        const start = new Date();
-        start.setDate(end.getDate() - 30);
-        const fmt = d => d.toISOString().slice(0, 10);
+      // Always attempt to fetch historical + prediction data from backend
+      const isin = ticker;
+      const end = new Date();
+      const start = new Date();
+      start.setDate(end.getDate() - 30);
+      const fmt = d => d.toISOString().slice(0, 10);
 
-        const histResp = await fetch(`/api/historical-candles`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ isin, start_date: fmt(start), end_date: fmt(end), interval: 'day', count: 1 })
-        });
-        if (!histResp.ok) throw new Error(`History fetch failed: ${histResp.status}`);
-        const histJson = await histResp.json();
+      const histResp = await fetch(`${API_BASE}/api/historical-candles`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isin, start_date: fmt(start), end_date: fmt(end), interval: 'day', count: 1 })
+      });
+      if (!histResp.ok) throw new Error(`History fetch failed: ${histResp.status}`);
+      const histJson = await histResp.json();
 
-        // Map server candle data -> history array with date & price (use Close)
-        // Server returns `data` as list of lists: [Timestamp, Open, High, Low, Close, Volume, Open Interest]
-        const history = (histJson.data || []).map(row => ({
-          date: new Date(row[0]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          price: +row[4]
-        }));
+      const history = (histJson.data || []).map(row => ({
+        date: new Date(row[0]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        price: +row[4]
+      }));
 
-        // Prediction endpoint
-        const predResp = await fetch(`/api/predict`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ isin, start_date: fmt(start), end_date: fmt(end), interval: 'day', count: 1 })
-        });
-        if (!predResp.ok) throw new Error(`Predict fetch failed: ${predResp.status}`);
-        const predJson = await predResp.json();
+      const predResp = await fetch(`${API_BASE}/api/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isin, start_date: fmt(start), end_date: fmt(end), interval: 'day', count: 1 })
+      });
+      if (!predResp.ok) throw new Error(`Predict fetch failed: ${predResp.status}`);
+      const predJson = await predResp.json();
 
-        // Build a simple 7-day predicted series using predicted_high
-        const lastPrice = history.length ? history[history.length - 1].price : predJson.predicted_high;
-        const predicted = Array.from({ length: 7 }, (_, i) => ({
-          date: new Date(Date.now() + (i + 1) * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          price: +(predJson.predicted_high + i * 0.1).toFixed(2),
-          lower: +(predJson.predicted_high - 1.5).toFixed(2),
-          upper: +(predJson.predicted_high + 1.5).toFixed(2),
-        }));
+      const lastPrice = history.length ? history[history.length - 1].price : predJson.predicted_high || 0;
+      const predicted = Array.from({ length: 7 }, (_, i) => ({
+        date: new Date(Date.now() + (i + 1) * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        price: +(predJson.predicted_high + i * 0.1 || lastPrice + i * 0.1).toFixed(2),
+        lower: +(predJson.predicted_high - 1.5 || lastPrice - 1.5).toFixed(2),
+        upper: +(predJson.predicted_high + 1.5 || lastPrice + 1.5).toFixed(2),
+      }));
 
-        const dataObj = {
-          ticker: isin,
-          name: histJson.isin || isin,
-          history,
-          predicted,
-          lastPrice: +lastPrice,
-          change: history.length ? +(lastPrice - history[0].price).toFixed(2) : 0,
-          changePct: history.length ? +(((lastPrice - history[0].price) / history[0].price) * 100).toFixed(2) : 0,
-          signal: predJson.confidence || 'HOLD',
-          signalColor: predJson.confidence === 'high' ? '#00e5a0' : '#facc15',
-          confidence: predJson.confidence === 'high' ? 80 : 50,
-          riskScore: 50,
-          trend: 'Neutral',
-          trendStrength: 50,
-          indicators: { rsi: 50, macd: 0, ema20: +(lastPrice * 0.98).toFixed(2), ema50: +(lastPrice * 0.95).toFixed(2), volume: 'N/A' }
-        };
+      const dataObj = {
+        ticker: isin,
+        name: histJson.isin || isin,
+        history,
+        predicted,
+        lastPrice: +lastPrice,
+        change: history.length ? +(lastPrice - history[0].price).toFixed(2) : 0,
+        changePct: history.length ? +(((lastPrice - history[0].price) / history[0].price) * 100).toFixed(2) : 0,
+        signal: predJson.signal || 'HOLD',
+        signalColor: predJson.confidence === 'high' ? '#00e5a0' : '#facc15',
+        confidence: typeof predJson.confidence === 'number' ? predJson.confidence : (predJson.confidence === 'high' ? 80 : 50),
+        riskScore: predJson.riskScore || 50,
+        trend: predJson.trend || 'Neutral',
+        trendStrength: predJson.trendStrength || 50,
+        indicators: { rsi: predJson.rsi || 50, macd: predJson.macd || 0, ema20: +(lastPrice * 0.98).toFixed(2), ema50: +(lastPrice * 0.95).toFixed(2), volume: predJson.volume || 'N/A' }
+      };
 
-        setStockData(d => ({ ...d, [ticker]: dataObj }));
-      } else {
-        await new Promise(r => setTimeout(r, 300));
-        setStockData(d => ({ ...d, [ticker]: generateMockData(ticker) }));
-      }
+      setStockData(d => ({ ...d, [ticker]: dataObj }));
     } catch (e) {
-      console.error(e);
+      console.error('Backend fetch failed, falling back to mock:', e);
       setStockData(d => ({ ...d, [ticker]: generateMockData(ticker) }));
     } finally {
       setLoading(false);
     }
   }
 
-  // When switching to API mode, fetch available stocks from backend
+  // Fetch available stocks from backend on mount (and set initial selected ticker)
   useEffect(() => {
-    if (!apiMode) return;
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch(`/api/stocks`);
+        const res = await fetch(`${API_BASE}/api/stocks`);
         if (!res.ok) throw new Error('Failed to fetch stocks');
         const json = await res.json();
-        // Map to { ticker, name }
-        const list = (json.stocks || []).map(s => ({ ticker: s.isin, name: s.name }));
-        if (mounted) {
+        // Map to { ticker, name } (server commonly returns `isin`)
+        const list = (json.stocks || []).map(s => ({ ticker: s.isin || s.ticker || s.id, name: s.name || s.company || '' }));
+        if (mounted && list.length) {
           setRemoteStocks(list);
-          if (list.length) setSelected(list[0].ticker);
+          setStocks(list);
+          setSelected(list[0].ticker);
         }
       } catch (err) {
         console.error('Error fetching remote stocks', err);
+        // fallback to an empty list — UI will show nothing until backend is available
+        setStocks([]);
       }
     })();
     return () => { mounted = false; };
-  }, [apiMode]);
+  }, []);
 
   useEffect(() => { loadStock(selected); }, [selected]);
-  // Pre-load all on mount (use remote stocks if available when apiMode is true)
+  // Pre-load all on mount (use remote stocks when available)
   useEffect(() => { 
-    const list = (apiMode && remoteStocks) ? remoteStocks : stocks;
+    const list = remoteStocks || stocks;
     list.forEach(s => loadStock(s.ticker));
   }, [remoteStocks]);
 
@@ -290,8 +276,8 @@ export default function StockDashboard() {
       <div style={{ borderRight: "1px solid #1a2a3a", padding: 16, overflowY: "auto", background: "#07101a" }}>
         <div style={{ fontSize: 10, color: "#445566", letterSpacing: 2, marginBottom: 12, paddingLeft: 4 }}>WATCHLIST</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {(apiMode && remoteStocks ? remoteStocks : stocks).map(s => (
-            <StockCard key={s.ticker} ticker={s.ticker} selected={selected === s.ticker}
+          {(remoteStocks || stocks).map(s => (
+            <StockCard key={s.ticker} ticker={s.ticker} name={s.name} selected={selected === s.ticker}
               data={stockData[s.ticker]} onClick={() => setSelected(s.ticker)} />
           ))}
         </div>
@@ -309,8 +295,16 @@ export default function StockDashboard() {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
               <div>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-                  <h1 style={{ fontFamily: "'Space Mono', monospace", fontSize: 28, margin: 0, color: "#fff" }}>{data.ticker}</h1>
-                  <span style={{ fontSize: 14, color: "#667788" }}>{(remoteStocks || MOCK_STOCKS).find(s => s.ticker === selected)?.name}</span>
+                  {(() => {
+                    const meta = (remoteStocks || stocks).find(s => s.ticker === selected) || {};
+                    const displayName = meta.name || data?.name || selected;
+                    return (
+                      <>
+                        <h1 style={{ fontFamily: "'Space Mono', monospace", fontSize: 28, margin: 0, color: "#fff" }}>{displayName}</h1>
+                        <span style={{ fontSize: 14, color: "#667788" }}>{selected}</span>
+                      </>
+                    );
+                  })()}
                 </div>
                 <div style={{ display: "flex", gap: 12, marginTop: 6, alignItems: "center" }}>
                   <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 22, color: "#e8f4ff", fontWeight: 700 }}>${data.lastPrice}</span>
