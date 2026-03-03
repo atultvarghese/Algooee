@@ -189,12 +189,9 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-function StockCard({ ticker, selected, data, onClick, name, meta }) {
-  // allow rendering when only meta (server list) is available
-  if (!data && !meta) return null;
-  const up = (data?.changePct ?? 0) >= 0;
-  const displayName = name || data?.name || ticker;
-  const displayLast = meta?.last_price ?? data?.lastPrice ?? "—";
+function StockCard({ ticker, selected, data, onClick }) {
+  if (!data) return null;
+  const up = data.changePct >= 0;
   return (
     <div onClick={onClick} style={{
       background: selected ? "linear-gradient(135deg, #0d2236 0%, #0f2940 100%)" : "#0a1520",
@@ -204,8 +201,8 @@ function StockCard({ ticker, selected, data, onClick, name, meta }) {
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: selected ? "#00e5a0" : "#cde" }}>{displayName}</div>
-          <div style={{ fontSize: 10, color: "#556677", marginTop: 2 }}>{ticker}</div>
+          <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: selected ? "#00e5a0" : "#cde" }}>{ticker}</div>
+          <div style={{ fontSize: 10, color: "#556677", marginTop: 2 }}>{data.name || ""}</div>
         </div>
         <SignalBadge signal={data?.signal} color={data?.signalColor} />
       </div>
@@ -246,24 +243,21 @@ export default function StockDashboard() {
       if (!histResp.ok) throw new Error(`History fetch failed: ${histResp.status}`);
       const histJson = await histResp.json();
 
-      let history = (histJson.data || []).map(row => ({
-        date: new Date(row[0]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        price: +row[4]
-      }));
-      // Ensure history is chronological (oldest -> newest) so lastPrice is the latest value
-      if (history.length > 1) {
-        const firstTs = new Date(history[0].date).getTime();
-        const lastTs = new Date(history[history.length - 1].date).getTime();
-        if (firstTs > lastTs) history = history.slice().reverse();
-      }
+        // Map server candle data -> history array with date & price (use Close)
+        // Server returns `data` as list of lists: [Timestamp, Open, High, Low, Close, Volume, Open Interest]
+        const history = (histJson.data || []).map(row => ({
+          date: new Date(row[0]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          price: +row[4]
+        }));
 
-      const predResp = await fetch(`${API_BASE}/api/predict`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isin, start_date: fmt(start), end_date: fmt(end), interval: 'day', count: 1 })
-      });
-      if (!predResp.ok) throw new Error(`Predict fetch failed: ${predResp.status}`);
-      const predJson = await predResp.json();
+        // Prediction endpoint
+        const predResp = await fetch(`/api/predict`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isin, start_date: fmt(start), end_date: fmt(end), interval: 'day', count: 1 })
+        });
+        if (!predResp.ok) throw new Error(`Predict fetch failed: ${predResp.status}`);
+        const predJson = await predResp.json();
 
       const lastPrice = history.length ? history[history.length - 1].price : predJson.predicted_high || 0;
       const predicted = Array.from({ length: 7 }, (_, i) => ({
@@ -307,13 +301,9 @@ export default function StockDashboard() {
         const res = await fetch(`${API_BASE}/api/stocks`);
         if (!res.ok) throw new Error('Failed to fetch stocks');
         const json = await res.json();
-        // Map to { ticker, name } (server commonly returns `isin`)
-        const list = (json.stocks || []).map(s => ({
-          ticker: s.isin || s.ticker || s.id,
-          name: s.name || s.company || '',
-          last_price: s.last_price ?? s.lastPrice ?? null,
-        }));
-        if (mounted && list.length) {
+        // Map to { ticker, name }
+        const list = (json.stocks || []).map(s => ({ ticker: s.isin, name: s.name }));
+        if (mounted) {
           setRemoteStocks(list);
           setStocks(list);
           setSelected(list[0].ticker);
@@ -397,8 +387,8 @@ export default function StockDashboard() {
       <div style={{ borderRight: "1px solid #1a2a3a", padding: 16, overflowY: "auto", background: "#07101a" }}>
         <div style={{ fontSize: 10, color: "#445566", letterSpacing: 2, marginBottom: 12, paddingLeft: 4 }}>WATCHLIST</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {(remoteStocks || stocks).map(s => (
-            <StockCard key={s.ticker} ticker={s.ticker} name={s.name} meta={s} selected={selected === s.ticker}
+          {(apiMode && remoteStocks ? remoteStocks : stocks).map(s => (
+            <StockCard key={s.ticker} ticker={s.ticker} selected={selected === s.ticker}
               data={stockData[s.ticker]} onClick={() => setSelected(s.ticker)} />
           ))}
         </div>
