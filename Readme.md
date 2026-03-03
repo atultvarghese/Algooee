@@ -109,14 +109,11 @@ uvicorn server:app --reload
 Start the development client fronten using the following command:
 
 ```powershell
-npm run build 
 npm run dev
 ```
 
 ## Open UI
-
-Navigate to `http://localhost:8000/` to access the web UI.
-
+[http://localhost:3000/](http://localhost:3000/)
 ## Notes
 
 - This repository now exposes only the API; the previous HTML-based UI has been removed. The React/Vite frontend lives separately in the `src/` directory and is served independently during development.
