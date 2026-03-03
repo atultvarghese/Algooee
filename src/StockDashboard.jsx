@@ -103,9 +103,12 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-function StockCard({ ticker, selected, data, onClick, name }) {
-  if (!data) return null;
-  const up = data.changePct >= 0;
+function StockCard({ ticker, selected, data, onClick, name, meta }) {
+  // allow rendering when only meta (server list) is available
+  if (!data && !meta) return null;
+  const up = (data?.changePct ?? 0) >= 0;
+  const displayName = name || data?.name || ticker;
+  const displayLast = meta?.last_price ?? data?.lastPrice ?? "—";
   return (
     <div onClick={onClick} style={{
       background: selected ? "linear-gradient(135deg, #0d2236 0%, #0f2940 100%)" : "#0a1520",
@@ -115,14 +118,14 @@ function StockCard({ ticker, selected, data, onClick, name }) {
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: selected ? "#00e5a0" : "#cde" }}>{name || data.name || ticker}</div>
+          <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: selected ? "#00e5a0" : "#cde" }}>{displayName}</div>
           <div style={{ fontSize: 10, color: "#556677", marginTop: 2 }}>{ticker}</div>
         </div>
-        <SignalBadge signal={data.signal} color={data.signalColor} />
+        <SignalBadge signal={data?.signal} color={data?.signalColor} />
       </div>
       <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 18, color: "#e8f4ff", fontWeight: 700 }}>${data.lastPrice}</span>
-        <span style={{ fontSize: 12, color: up ? "#4ade80" : "#f87171", fontWeight: 600 }}>{up ? "▲" : "▼"} {Math.abs(data.changePct)}%</span>
+        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 18, color: "#e8f4ff", fontWeight: 700 }}>${displayLast}</span>
+        <span style={{ fontSize: 12, color: up ? "#4ade80" : "#f87171", fontWeight: 600 }}>{up ? "▲" : "▼"} {Math.abs(data?.changePct ?? 0)}%</span>
       </div>
     </div>
   );
@@ -157,10 +160,16 @@ export default function StockDashboard() {
       if (!histResp.ok) throw new Error(`History fetch failed: ${histResp.status}`);
       const histJson = await histResp.json();
 
-      const history = (histJson.data || []).map(row => ({
+      let history = (histJson.data || []).map(row => ({
         date: new Date(row[0]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         price: +row[4]
       }));
+      // Ensure history is chronological (oldest -> newest) so lastPrice is the latest value
+      if (history.length > 1) {
+        const firstTs = new Date(history[0].date).getTime();
+        const lastTs = new Date(history[history.length - 1].date).getTime();
+        if (firstTs > lastTs) history = history.slice().reverse();
+      }
 
       const predResp = await fetch(`${API_BASE}/api/predict`, {
         method: 'POST',
@@ -213,7 +222,11 @@ export default function StockDashboard() {
         if (!res.ok) throw new Error('Failed to fetch stocks');
         const json = await res.json();
         // Map to { ticker, name } (server commonly returns `isin`)
-        const list = (json.stocks || []).map(s => ({ ticker: s.isin || s.ticker || s.id, name: s.name || s.company || '' }));
+        const list = (json.stocks || []).map(s => ({
+          ticker: s.isin || s.ticker || s.id,
+          name: s.name || s.company || '',
+          last_price: s.last_price ?? s.lastPrice ?? null,
+        }));
         if (mounted && list.length) {
           setRemoteStocks(list);
           setStocks(list);
@@ -236,6 +249,9 @@ export default function StockDashboard() {
   }, [remoteStocks]);
 
   const data = stockData[selected];
+  const meta = (remoteStocks || stocks).find(s => s.ticker === selected) || {};
+  const todayPrice = meta.last_price ?? data?.lastPrice ?? null;
+  const predictedVal = data?.predicted?.[0]?.price ?? null;
   const chartData = data ? [
     ...data.history.map(h => ({ date: h.date, actual: h.price })),
     ...data.predicted.map(p => ({ date: p.date, predicted: p.price, lower: p.lower, upper: p.upper })),
@@ -277,7 +293,7 @@ export default function StockDashboard() {
         <div style={{ fontSize: 10, color: "#445566", letterSpacing: 2, marginBottom: 12, paddingLeft: 4 }}>WATCHLIST</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {(remoteStocks || stocks).map(s => (
-            <StockCard key={s.ticker} ticker={s.ticker} name={s.name} selected={selected === s.ticker}
+            <StockCard key={s.ticker} ticker={s.ticker} name={s.name} meta={s} selected={selected === s.ticker}
               data={stockData[s.ticker]} onClick={() => setSelected(s.ticker)} />
           ))}
         </div>
@@ -307,9 +323,14 @@ export default function StockDashboard() {
                   })()}
                 </div>
                 <div style={{ display: "flex", gap: 12, marginTop: 6, alignItems: "center" }}>
-                  <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 22, color: "#e8f4ff", fontWeight: 700 }}>${data.lastPrice}</span>
-                  <span style={{ color: data.changePct >= 0 ? "#4ade80" : "#f87171", fontSize: 14, fontWeight: 600 }}>
-                    {data.changePct >= 0 ? "▲" : "▼"} {Math.abs(data.change)} ({Math.abs(data.changePct)}%)
+                  <div>
+                    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 22, color: "#e8f4ff", fontWeight: 700 }}>${todayPrice ?? data?.lastPrice ?? "—"}</div>
+                    <div style={{ fontSize: 12, color: "#8899aa", marginTop: 4 }}>
+                      Today: {todayPrice ? `$${todayPrice}` : "—"} · Predicted: {predictedVal ? `$${predictedVal}` : "—"}
+                    </div>
+                  </div>
+                  <span style={{ color: data?.changePct >= 0 ? "#4ade80" : "#f87171", fontSize: 14, fontWeight: 600 }}>
+                    {data?.changePct >= 0 ? "▲" : "▼"} {Math.abs(data?.change ?? 0)} ({Math.abs(data?.changePct ?? 0)}%)
                   </span>
                   <span style={{ fontSize: 11, color: "#445566" }}>30D</span>
                 </div>
