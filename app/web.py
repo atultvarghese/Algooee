@@ -165,7 +165,8 @@ async def get_stock_list():
     """Get list of supported stocks with their ISINs"""
     stocks = {
         "stocks": [
-            {"name": "Reliance Industries", "isin": "INE002A01018"},
+            {"name": "Trident", "isin": "INE064C01022"},
+            {"name": "NIFTYBEES", "isin": "INF204KB14I2"},
             {"name": "Bharti Airtel", "isin": "INE397D01024"},
             {"name": "TCS", "isin": "INE467B01029"},
             {"name": "ICICI Bank", "isin": "INE090A01021"},
@@ -179,12 +180,8 @@ async def get_stock_list():
             {"name": "Sun Pharma", "isin": "INE044A01036"},
             {"name": "Axis Bank", "isin": "INE238A01034"},
             {"name": "UltraTech Cement", "isin": "INE481G01011"},
-            {"name": "Titan Company", "isin": "INE280A01028"},
-            {"name": "NTPC", "isin": "INE733E01010"},
             {"name": "Asian Paints", "isin": "INE021A01026"},
             {"name": "Tata Steel", "isin": "INE081A01020"},
-            {"name": "Tata Consumer Products", "isin": "INE192A01025"},
-            {"name": "Wipro", "isin": "INE075A01022"},
             {"name": "Adani Enterprises", "isin": "INE423A01024"},
             {"name": "Adani Ports", "isin": "INE742F01042"},
         ]
