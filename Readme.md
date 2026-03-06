@@ -109,6 +109,7 @@ uvicorn server:app --reload
 Start the development client fronten using the following command:
 
 ```powershell
+npm run build 
 npm run dev
 ```
 
