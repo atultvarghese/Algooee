@@ -10,23 +10,95 @@ const API_BASE = "http://localhost:8000"; // ← change to your backend URL
 // `stocks` now comes exclusively from the backend; no built-in mock list.
 
 function generateMockData(ticker) {
-  const seed = ticker.charCodeAt(0);
-  const base = 100 + seed * 1.5;
-  const history = Array.from({ length: 30 }, (_, i) => ({
-    date: new Date(Date.now() - (29 - i) * 86400000).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-    price: +(base + Math.sin(i * 0.4 + seed) * 15 + i * 0.3 + Math.random() * 4).toFixed(2),
-  }));
+  const seed = ticker.charCodeAt(0) + ticker.charCodeAt(ticker.length - 1);
+  const base = 50 + (seed % 200); // More varied base prices
+  const volatility = 0.02 + (seed % 10) * 0.005; // Realistic volatility
+  const trend = (seed % 3) - 1; // -1 to 1 trend factor
+  
+  // Generate 60 days of historical data for better chart
+  const history = [];
+  let currentPrice = base;
+  
+  for (let i = 59; i >= 0; i--) {
+    const date = new Date(Date.now() - i * 86400000);
+    // Add some realistic market patterns: weekday effects, random walk with trend
+    const dayOfWeek = date.getDay();
+    const weekdayFactor = (dayOfWeek === 1 || dayOfWeek === 5) ? 0.002 : 0; // Slight Monday/Friday effect
+    const randomChange = (Math.random() - 0.5) * volatility * currentPrice;
+    const trendChange = trend * 0.001 * currentPrice;
+    
+    currentPrice += randomChange + trendChange + weekdayFactor * currentPrice;
+    currentPrice = Math.max(currentPrice, base * 0.5); // Floor price
+    
+    history.push({
+      date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      price: +currentPrice.toFixed(2),
+      volume: Math.floor((seed * 100000 + Math.random() * 500000) + 1000000) // Realistic volume
+    });
+  }
+  
   const lastPrice = history[history.length - 1].price;
-  const predicted = Array.from({ length: 7 }, (_, i) => ({
-    date: new Date(Date.now() + (i + 1) * 86400000).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-    price: +(lastPrice + (Math.random() - 0.4) * 5 + i * 0.8).toFixed(2),
-    lower: +(lastPrice + (Math.random() - 0.6) * 5 + i * 0.4 - 3).toFixed(2),
-    upper: +(lastPrice + (Math.random() - 0.2) * 5 + i * 1.2 + 3).toFixed(2),
-  }));
-  const signal = ["STRONG BUY", "BUY", "HOLD", "SELL"][Math.floor(seed % 4)];
+  
+  // Generate 14-day predictions with confidence intervals
+  const predicted = [];
+  let predPrice = lastPrice;
+  const predVolatility = volatility * 1.2; // Predictions are more uncertain
+  
+  for (let i = 0; i < 14; i++) {
+    const date = new Date(Date.now() + (i + 1) * 86400000);
+    const randomChange = (Math.random() - 0.5) * predVolatility * predPrice;
+    const trendChange = trend * 0.0005 * predPrice; // Weaker trend in predictions
+    
+    predPrice += randomChange + trendChange;
+    predPrice = Math.max(predPrice, lastPrice * 0.7); // Don't crash too much
+    
+    const confidence = Math.max(20, 80 - i * 3); // Confidence decreases over time
+    const stdDev = (predVolatility * predPrice) * (1 + i * 0.1);
+    
+    predicted.push({
+      date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      price: +predPrice.toFixed(2),
+      lower: +(predPrice - stdDev * 1.96).toFixed(2), // 95% confidence interval
+      upper: +(predPrice + stdDev * 1.96).toFixed(2),
+      confidence: confidence
+    });
+  }
+  
+  // Calculate realistic technical indicators
+  const prices = history.map(h => h.price);
+  const gains = [], losses = [];
+  for (let i = 1; i < prices.length; i++) {
+    const change = prices[i] - prices[i-1];
+    gains.push(change > 0 ? change : 0);
+    losses.push(change < 0 ? -change : 0);
+  }
+  
+  const avgGain = gains.reduce((a, b) => a + b, 0) / gains.length;
+  const avgLoss = losses.reduce((a, b) => a + b, 0) / losses.length;
+  const rs = avgGain / avgLoss;
+  const rsi = +(100 - (100 / (1 + rs))).toFixed(1);
+  
+  // Simple MACD calculation (EMA12 - EMA26)
+  const ema12 = prices.slice(-12).reduce((a, b) => a + b, 0) / 12;
+  const ema26 = prices.slice(-26).reduce((a, b) => a + b, 0) / 26;
+  const macd = +(ema12 - ema26).toFixed(3);
+  
+  // EMAs
+  const ema20 = prices.slice(-20).reduce((a, b) => a + b, 0) / 20;
+  const ema50 = prices.slice(-50).reduce((a, b) => a + b, 0) / 50;
+  
+  // Volume average
+  const avgVolume = history.slice(-20).reduce((sum, h) => sum + h.volume, 0) / 20;
+  const volumeStr = avgVolume > 1000000 ? `${(avgVolume / 1000000).toFixed(1)}M` : `${(avgVolume / 1000).toFixed(0)}K`;
+  
+  const signal = rsi > 70 ? "SELL" : rsi < 30 ? "BUY" : macd > 0 && lastPrice > ema20 ? "STRONG BUY" : macd < 0 && lastPrice < ema20 ? "SELL" : "HOLD";
   const signalColor = { "STRONG BUY": "#00e5a0", "BUY": "#4ade80", "HOLD": "#facc15", "SELL": "#f87171" };
-  const rsi = +(40 + seed % 40 + Math.random() * 10).toFixed(1);
-  const macd = +((Math.random() - 0.5) * 4).toFixed(3);
+  
+  const confidence = Math.min(95, Math.max(45, 70 + (seed % 20) - Math.abs(trend) * 10));
+  const riskScore = Math.min(90, Math.max(10, 50 + (volatility * 1000) + Math.abs(trend) * 20));
+  const trendLabel = trend > 0.3 ? "Bullish" : trend < -0.3 ? "Bearish" : "Neutral";
+  const trendStrength = Math.abs(trend) * 100;
+  
   return {
     ticker,
     history,
@@ -36,11 +108,11 @@ function generateMockData(ticker) {
     changePct: +(((lastPrice - history[0].price) / history[0].price) * 100).toFixed(2),
     signal,
     signalColor: signalColor[signal],
-    confidence: +(65 + seed % 25 + Math.random() * 5).toFixed(1),
-    riskScore: +(20 + seed % 60 + Math.random() * 10).toFixed(1),
-    trend: seed % 3 === 0 ? "Bearish" : seed % 3 === 1 ? "Neutral" : "Bullish",
-    trendStrength: +(40 + seed % 50 + Math.random() * 10).toFixed(1),
-    indicators: { rsi, macd, ema20: +(lastPrice * 0.98).toFixed(2), ema50: +(lastPrice * 0.95).toFixed(2), volume: `${(seed * 1.2 + 12).toFixed(1)}M` },
+    confidence,
+    riskScore,
+    trend: trendLabel,
+    trendStrength,
+    indicators: { rsi, macd, ema20: +ema20.toFixed(2), ema50: +ema50.toFixed(2), volume: volumeStr },
   };
 }
 
@@ -91,14 +163,28 @@ function ConfidenceRing({ value }) {
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
+  
+  const data = payload[0]?.payload;
+  if (!data) return null;
+  
   return (
     <div style={{ background: "#0d1a26", border: "1px solid #1e3a52", borderRadius: 8, padding: "8px 14px", fontSize: 12 }}>
       <div style={{ color: "#8899aa", marginBottom: 4 }}>{label}</div>
-      {payload.map((p, i) => (
-        <div key={i} style={{ color: p.color || "#00e5a0", fontWeight: 600 }}>
-          {p.name}: ${p.value}
+      {data.actual !== null && (
+        <div style={{ color: "#4a9eff", fontWeight: 600 }}>
+          Actual: ${data.actual}
         </div>
-      ))}
+      )}
+      {data.predicted !== null && (
+        <div style={{ color: "#00e5a0", fontWeight: 600 }}>
+          Predicted: ${data.predicted}
+        </div>
+      )}
+      {data.lower !== null && data.upper !== null && (
+        <div style={{ color: "#00e5a030", fontSize: 10, marginTop: 2 }}>
+          Range: ${data.lower} - ${data.upper}
+        </div>
+      )}
     </div>
   );
 };
@@ -252,10 +338,29 @@ export default function StockDashboard() {
   const meta = (remoteStocks || stocks).find(s => s.ticker === selected) || {};
   const todayPrice = meta.last_price ?? data?.lastPrice ?? null;
   const predictedVal = data?.predicted?.[0]?.price ?? null;
+  
+  // Create chart data with proper structure for historical and predicted data
   const chartData = data ? [
-    ...data.history.map(h => ({ date: h.date, actual: h.price })),
-    ...data.predicted.map(p => ({ date: p.date, predicted: p.price, lower: p.lower, upper: p.upper })),
-  ] : [];
+    // Historical data points
+    ...data.history.map(h => ({ 
+      date: h.date, 
+      actual: h.price, 
+      predicted: null, 
+      lower: null, 
+      upper: null,
+      isHistorical: true 
+    })),
+    // Predicted data points
+    ...data.predicted.map(p => ({ 
+      date: p.date, 
+      actual: null, 
+      predicted: p.price, 
+      lower: p.lower, 
+      upper: p.upper,
+      isHistorical: false 
+    })),
+  ].sort((a, b) => new Date(a.date) - new Date(b.date)) : []; // Ensure chronological order
+  
   const splitIdx = data ? data.history.length - 1 : 0;
 
   const trendColor = data?.trend === "Bullish" ? "#00e5a0" : data?.trend === "Bearish" ? "#f87171" : "#facc15";
@@ -347,7 +452,7 @@ export default function StockDashboard() {
             {/* Chart */}
             <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: "20px 16px", marginBottom: 20 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, paddingRight: 8 }}>
-                <span style={{ fontSize: 12, color: "#667788", letterSpacing: 1 }}>PRICE HISTORY & 7-DAY PREDICTION</span>
+                <span style={{ fontSize: 12, color: "#667788", letterSpacing: 1 }}>PRICE HISTORY & 14-DAY PREDICTION</span>
                 <div style={{ display: "flex", gap: 16, fontSize: 11 }}>
                   <span style={{ color: "#4a9eff" }}>── Actual</span>
                   <span style={{ color: "#00e5a0" }}>── Predicted</span>
@@ -363,14 +468,46 @@ export default function StockDashboard() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid stroke="#1a2a3a" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="date" tick={{ fill: "#445566", fontSize: 10 }} tickLine={false} axisLine={false} interval={4} />
+                  <XAxis dataKey="date" tick={{ fill: "#445566", fontSize: 10 }} tickLine={false} axisLine={false} interval={Math.floor(chartData.length / 8)} />
                   <YAxis tick={{ fill: "#445566", fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `$${v}`} width={52} />
                   <Tooltip content={<CustomTooltip />} />
-                  <ReferenceLine x={chartData[splitIdx]?.date} stroke="#2a3a4a" strokeDasharray="4 4" label={{ value: "NOW", fill: "#445566", fontSize: 10 }} />
-                  <Area type="monotone" dataKey="upper" stroke="none" fill="#00e5a0" fillOpacity={0.07} />
-                  <Area type="monotone" dataKey="lower" stroke="none" fill="#060e17" fillOpacity={1} />
-                  <Line type="monotone" dataKey="actual" stroke="#4a9eff" strokeWidth={2} dot={false} connectNulls />
-                  <Line type="monotone" dataKey="predicted" stroke="#00e5a0" strokeWidth={2} dot={false} strokeDasharray="5 3" connectNulls />
+                  <ReferenceLine x={data.history[data.history.length - 1]?.date} stroke="#2a3a4a" strokeDasharray="4 4" label={{ value: "NOW", fill: "#445566", fontSize: 10 }} />
+                  {/* Confidence band - only for predicted data */}
+                  <Area 
+                    type="monotone" 
+                    dataKey="upper" 
+                    stroke="none" 
+                    fill="#00e5a0" 
+                    fillOpacity={0.07} 
+                    connectNulls={false}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="lower" 
+                    stroke="none" 
+                    fill="#060e17" 
+                    fillOpacity={1} 
+                    connectNulls={false}
+                  />
+                  {/* Historical price line */}
+                  <Line 
+                    type="monotone" 
+                    dataKey="actual" 
+                    stroke="#4a9eff" 
+                    strokeWidth={2} 
+                    dot={false} 
+                    connectNulls={false}
+                  />
+                  {/* Predicted price line */}
+                  <Line 
+                    type="monotone" 
+                    dataKey="predicted" 
+                    stroke="#00e5a0" 
+                    strokeWidth={2} 
+                    dot={false} 
+                    strokeDasharray="5 3" 
+                    connectNulls={false}
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
