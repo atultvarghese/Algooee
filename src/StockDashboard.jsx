@@ -341,6 +341,8 @@ export default function StockDashboard() {
   const meta = (remoteStocks || stocks).find(s => s.ticker === selected) || {};
   const todayPrice = meta.last_price ?? data?.lastPrice ?? null;
   const predictedVal = data?.predicted?.[0]?.price ?? null;
+  
+  // Create chart data with proper structure for historical and predicted data
   const chartData = data ? [
     // Historical data points
     ...data.history.map(h => ({ 
