@@ -15,21 +15,18 @@ Before you begin.
 
 Follow these steps to get the project running locally and configure it for contributing:
 
-### Step 1: Fork the Repository on GitHub
+### Step 1: Clone the Repository open git bash
 
-The first step is to create a personal copy (a "fork") of the main project repository in your own GitHub account.
+```bash
+git clone https://github.com/atultvarghese/Algooee.git
+```
 
-1.  Open your web browser and navigate to the main project page:
-    [github.com](github.com)
-2.  In the top-right corner of the page, click the **"Fork"** button. This creates a copy of the repository under your GitHub username (e.g., `github.com`).
+### Step 2: Create a devlopment branch for your feature
 
-### Step 2: Clone Your Fork Locally
-
-Now, you need to download your personal fork to your local machine.
-
-1.  Go to your _forked_ repository page on GitHub.
-2.  Click the green **"Code"** button and copy the HTTPS URL.
-
+```bash
+cd Algooee
+git checkout -b dev_new_feature
+```
 
 # Algooee
 
@@ -56,42 +53,14 @@ Run the following commands based on your operating system:
     venv\Scripts\Activate.ps1
     python -m pip install -r requirements.txt
     ```
-## Quick Start
-
-Follow these steps to set up and run the project:
-
-### 1. Create a Virtual Environment and Install Dependencies
-
-Run the following commands based on your operating system:
-
-- **macOS/Linux**:
-    ```bash
-    python3 -m venv venv
-    source venv/bin/activate
-    python3 -m pip install -r requirements.txt
-    ```
-
-- **Windows**:
-    ```powershell
-    python -m venv venv
-    venv\Scripts\Activate.ps1
-    python -m pip install -r requirements.txt
-    ```
 
 ### 2. Configure Environment Variables
 
-Open `.env` and add your `UPSTOX_API_TOKEN`:
+Refer:
+https://upstox.com/developer/api-documentation/sandbox this page to create the token(free of cost just need an Upstox demat account (If you need to create account use this link https://upstox.onelink.me/0H1s/4BA7NP))
 
-```bash
-.env 
-```
+Open `.env` and add your `UPSTOX_API_TOKEN` 
 
-### 3. Run the Server (Development)
-
-Start the development server using the following command:
-### 2. Configure Environment Variables
-
-Open `.env` and add your `UPSTOX_API_TOKEN`:
 
 ```bash
 .env 
@@ -109,6 +78,7 @@ uvicorn server:app --reload
 Start the development client fronten using the following command:
 
 ```powershell
+npm install
 npm run build 
 npm run dev
 ```
@@ -117,6 +87,4 @@ npm run dev
 [http://localhost:3000/](http://localhost:3000/)
 ## Notes
 
-- This repository now exposes only the API; the previous HTML-based UI has been removed. The React/Vite frontend lives separately in the `src/` directory and is served independently during development.
-- Unused Python dependencies such as `jinja2` and `aiofiles` have been removed from `requirements.txt` since no templates or static files are served.
-- If you don't have an Upstox token, prediction endpoints will return a 503.
+- If you don't have an Upstox token, prediction endpoints will return a 503 and the UI will show all the values as zero by default
