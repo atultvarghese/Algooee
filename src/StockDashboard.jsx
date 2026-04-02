@@ -21,6 +21,11 @@ function buildEmptyStockData(ticker) {
     signal: "NO DATA",
     signalColor: "#778899",
     confidence: 0,
+    mae: null,
+    mape: null,
+    p10: null,
+    p90: null,
+    errorRatioPct: null,
     riskScore: 0,
     trend: "Neutral",
     trendStrength: 0,
@@ -63,6 +68,11 @@ const INR_FORMATTER = new Intl.NumberFormat("en-IN", {
 function formatINR(value) {
   const n = toNumberOrNaN(value);
   return Number.isFinite(n) ? INR_FORMATTER.format(n) : "—";
+}
+
+function formatPercent(value, digits = 2) {
+  const n = toNumberOrNaN(value);
+  return Number.isFinite(n) ? `${n.toFixed(digits)}%` : "—";
 }
 
 function firstFinite(values) {
@@ -384,6 +394,14 @@ export default function StockDashboard() {
             : predJson.confidence === "moderate"
               ? 50
               : 0;
+      const maeValue = Number(predJson.mae ?? predJson?.forecast?.mae);
+      const mapeValue = Number(predJson.mape ?? predJson?.forecast?.mape);
+      const p10Value = Number(predJson.p10 ?? predJson?.forecast?.p10);
+      const p90Value = Number(predJson.p90 ?? predJson?.forecast?.p90);
+      const errorRatioPct =
+        Number.isFinite(maeValue) && Number.isFinite(predictedHigh) && Math.abs(predictedHigh) > 0
+          ? (maeValue / Math.abs(predictedHigh)) * 100
+          : NaN;
 
       const dataObj = {
         ticker: isin,
@@ -397,6 +415,11 @@ export default function StockDashboard() {
         signal: predJson.signal || 'NO DATA',
         signalColor: predJson.signalColor || '#778899',
         confidence,
+        mae: Number.isFinite(maeValue) ? +maeValue.toFixed(4) : null,
+        mape: Number.isFinite(mapeValue) ? +mapeValue.toFixed(4) : null,
+        p10: Number.isFinite(p10Value) ? +p10Value.toFixed(2) : null,
+        p90: Number.isFinite(p90Value) ? +p90Value.toFixed(2) : null,
+        errorRatioPct: Number.isFinite(errorRatioPct) ? +errorRatioPct.toFixed(4) : null,
         riskScore: Number.isFinite(+predJson.riskScore) ? +predJson.riskScore : 0,
         trend: predJson.trend || 'Neutral',
         trendStrength: Number.isFinite(+predJson.trendStrength) ? +predJson.trendStrength : 0,
@@ -457,6 +480,10 @@ export default function StockDashboard() {
   const chartActualHistory = data?.history ? data.history.slice(-10) : [];
   const chartBacktest = data?.backtest ? data.backtest.slice(-10) : [];
   const chartFuture = data?.predicted ? data.predicted.slice(0, 5) : [];
+  const forecastRows = data?.predicted ? data.predicted.slice(0, 5) : [];
+  const avgBacktestAbsError = (data?.backtest?.length || 0) > 0
+    ? data.backtest.reduce((sum, row) => sum + Math.abs((row.actual ?? 0) - (row.predicted ?? 0)), 0) / data.backtest.length
+    : NaN;
 
   const chartMap = new Map();
   chartActualHistory.forEach((row) => {
@@ -611,6 +638,48 @@ export default function StockDashboard() {
                   />
                 </LineChart>
               </ResponsiveContainer>
+            </div>
+
+            {/* Prediction Details */}
+            <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: 20, marginBottom: 20 }}>
+              <div style={{ fontSize: 10, color: "#445566", letterSpacing: 2, marginBottom: 14 }}>PREDICTION DETAILS</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+                {[
+                  { label: "Next Day Range", value: `${formatINR(data.p10)} - ${formatINR(data.p90)}`, note: "p10 to p90" },
+                  { label: "Model MAE", value: formatINR(data.mae), note: "Average absolute error" },
+                  { label: "Model MAPE", value: formatPercent(data.mape), note: "Average percentage error" },
+                  { label: "Backtest Error", value: formatINR(avgBacktestAbsError), note: "Avg |actual - predicted|" },
+                ].map((metric) => (
+                  <div key={metric.label} style={{ background: "#060e17", border: "1px solid #1a2a3a", borderRadius: 8, padding: "12px 14px" }}>
+                    <div style={{ fontSize: 10, color: "#445566", letterSpacing: 1, marginBottom: 6 }}>{metric.label}</div>
+                    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 700, color: "#e8f4ff", marginBottom: 4 }}>{metric.value}</div>
+                    <div style={{ fontSize: 10, color: "#667788" }}>{metric.note}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ border: "1px solid #1a2a3a", borderRadius: 8, overflow: "hidden" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: 0, background: "#081321", color: "#667788", fontSize: 10, letterSpacing: 1, textTransform: "uppercase" }}>
+                  <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a" }}>Date</div>
+                  <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a" }}>Predicted</div>
+                  <div style={{ padding: "10px 12px" }}>Range</div>
+                </div>
+                {forecastRows.length ? (
+                  forecastRows.map((row) => (
+                    <div key={row.ts} style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: 0, borderTop: "1px solid #1a2a3a", fontSize: 12 }}>
+                      <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a", color: "#9bb0c4" }}>{row.dateLabel}</div>
+                      <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a", color: "#00e5a0", fontWeight: 600 }}>{formatINR(row.price)}</div>
+                      <div style={{ padding: "10px 12px", color: "#7cc8ad" }}>
+                        {Number.isFinite(row.lower) && Number.isFinite(row.upper)
+                          ? `${formatINR(row.lower)} - ${formatINR(row.upper)}`
+                          : "—"}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ padding: "12px", color: "#556677", fontSize: 12 }}>No forecast data available.</div>
+                )}
+              </div>
             </div>
 
             {/* Stats row */}
