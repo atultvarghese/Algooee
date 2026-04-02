@@ -1,8 +1,9 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import List
 import pandas as pd
+import time
 from app.app import UpstoxClient
 from core.prediction import Prediction
 
@@ -37,16 +38,15 @@ class HistoricalCandleResponse(BaseModel):
     data: List[List]
     timestamp: str
 
-class PredictionResponse(BaseModel):
-    isin: str
-    predicted_high: float
-    confidence: str
-
 # Initialize client
 try:
     client = UpstoxClient()
 except ValueError as e:
     client = None
+
+# Simple in-memory cache for expensive prediction calls
+PREDICTION_CACHE = {}
+PREDICTION_CACHE_TTL_SECONDS = 300
 
 # API Routes
 @app.get("/", tags=["UI"])
@@ -122,6 +122,11 @@ async def predict_stock(request: StockPredictionRequest):
             status_code=503,
             detail="Upstox API client not configured"
         )
+    cache_key = f"{request.isin}|{request.start_date}|{request.end_date}|{request.interval}|{request.count}"
+    now_ts = time.time()
+    cached = PREDICTION_CACHE.get(cache_key)
+    if cached and (now_ts - cached["ts"] <= PREDICTION_CACHE_TTL_SECONDS):
+        return cached["value"]
     
     try:
         # Fetch historical data
@@ -147,13 +152,29 @@ async def predict_stock(request: StockPredictionRequest):
         predictor = Prediction(df)
         predictor.feature_engineering()
         predictor.train_model()
-        predicted_high = predictor.predict_next_day()
-        
-        return PredictionResponse(
-            isin=request.isin,
-            predicted_high=float(predicted_high),
-            confidence="high" if predicted_high > 0 else "moderate"
-        )
+        forecast = predictor.predict_next_day()
+        backtest = predictor.get_backtest_points(limit=15)
+
+        # Compatibility fields + richer payload
+        predicted_high = float(forecast.get("predicted_high", 0.0))
+        mae = float(forecast.get("mae", 0.0))
+        mape = float(forecast.get("mape", 0.0))
+        error_ratio = mae / max(abs(predicted_high), 1.0)
+        confidence = "high" if (mape <= 2.0 and error_ratio <= 0.02) else "moderate"
+
+        result = {
+            "isin": request.isin,
+            "predicted_high": predicted_high,
+            "p10": float(forecast.get("p10", predicted_high)),
+            "p90": float(forecast.get("p90", predicted_high)),
+            "mae": mae,
+            "mape": mape,
+            "confidence": confidence,
+            "forecast": forecast,
+            "backtest": backtest,
+        }
+        PREDICTION_CACHE[cache_key] = {"ts": now_ts, "value": result}
+        return result
     except Exception as e:
         raise HTTPException(
             status_code=400,
@@ -169,21 +190,21 @@ async def get_stock_list():
             {"name": "NIFTYBEES", "isin": "INF204KB14I2"},
             {"name": "Bharti Airtel", "isin": "INE397D01024"},
             {"name": "TCS", "isin": "INE467B01029"},
-            {"name": "ICICI Bank", "isin": "INE090A01021"},
-            {"name": "State Bank of India", "isin": "INE062A01020"},
-            {"name": "Infosys", "isin": "INE009A01021"},
-            {"name": "Hindustan Unilever", "isin": "INE030A01027"},
-            {"name": "ITC", "isin": "INE154A01025"},
-            {"name": "Mahindra & Mahindra", "isin": "INE101A01026"},
-            {"name": "Kotak Mahindra Bank", "isin": "INE237A01028"},
-            {"name": "HCL Technologies", "isin": "INE860A01027"},
-            {"name": "Sun Pharma", "isin": "INE044A01036"},
-            {"name": "Axis Bank", "isin": "INE238A01034"},
-            {"name": "UltraTech Cement", "isin": "INE481G01011"},
-            {"name": "Asian Paints", "isin": "INE021A01026"},
-            {"name": "Tata Steel", "isin": "INE081A01020"},
-            {"name": "Adani Enterprises", "isin": "INE423A01024"},
-            {"name": "Adani Ports", "isin": "INE742F01042"},
+            # {"name": "ICICI Bank", "isin": "INE090A01021"},
+            # {"name": "State Bank of India", "isin": "INE062A01020"},
+            # {"name": "Infosys", "isin": "INE009A01021"},
+            # {"name": "Hindustan Unilever", "isin": "INE030A01027"},
+            # {"name": "ITC", "isin": "INE154A01025"},
+            # {"name": "Mahindra & Mahindra", "isin": "INE101A01026"},
+            # {"name": "Kotak Mahindra Bank", "isin": "INE237A01028"},
+            # {"name": "HCL Technologies", "isin": "INE860A01027"},
+            # {"name": "Sun Pharma", "isin": "INE044A01036"},
+            # {"name": "Axis Bank", "isin": "INE238A01034"},
+            # {"name": "UltraTech Cement", "isin": "INE481G01011"},
+            # {"name": "Asian Paints", "isin": "INE021A01026"},
+            # {"name": "Tata Steel", "isin": "INE081A01020"},
+            # {"name": "Adani Enterprises", "isin": "INE423A01024"},
+            # {"name": "Adani Ports", "isin": "INE742F01042"},
         ]
     }
     return stocks

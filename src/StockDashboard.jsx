@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import {
-  LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine
 } from "recharts";
 
@@ -13,6 +13,7 @@ function buildEmptyStockData(ticker) {
     ticker,
     name: ticker,
     history: [],
+    backtest: [],
     predicted: [],
     lastPrice: 0,
     change: 0,
@@ -25,6 +26,77 @@ function buildEmptyStockData(ticker) {
     trendStrength: 0,
     indicators: { rsi: 0, macd: 0, ema20: 0, ema50: 0, volume: 0 },
   };
+}
+
+function normalizeTimestamp(value) {
+  const numeric = Number(value);
+  let normalized = value;
+  if (Number.isFinite(numeric)) {
+    // Support both epoch seconds and epoch milliseconds
+    normalized = Math.abs(numeric) < 1e11 ? numeric * 1000 : numeric;
+  }
+  const date = new Date(normalized);
+  const ts = date.getTime();
+  return Number.isNaN(ts) ? null : ts;
+}
+
+function formatDateLabel(ts) {
+  return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function toNumberOrNaN(value) {
+  if (typeof value === "string") {
+    const cleaned = value.replace(/[^0-9.+-]/g, "");
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : NaN;
+  }
+  const n = Number(value);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function firstFinite(values) {
+  for (const v of values) {
+    if (Number.isFinite(v)) return v;
+  }
+  return NaN;
+}
+
+function getCandleRows(histJson) {
+  if (Array.isArray(histJson?.data)) return histJson.data;
+  if (Array.isArray(histJson?.data?.candles)) return histJson.data.candles;
+  if (Array.isArray(histJson?.candles)) return histJson.candles;
+  return [];
+}
+
+function extractCandlePoint(row) {
+  if (Array.isArray(row)) {
+    const ts = normalizeTimestamp(row[0]);
+    const numericRow = row.map(toNumberOrNaN);
+    // Prefer canonical candle positions, then fallback to any plausible price-like number.
+    const price = firstFinite([
+      numericRow[4], // close (canonical)
+      numericRow[2], // high (canonical)
+      numericRow[1], // open
+      numericRow[3], // low
+      ...numericRow.filter(Number.isFinite),
+    ]);
+    return { ts, price };
+  }
+
+  if (row && typeof row === "object") {
+    const ts = normalizeTimestamp(
+      row.timestamp ?? row.time ?? row.date ?? row.datetime ?? row.candle_time
+    );
+    const price = firstFinite([
+      toNumberOrNaN(row.close ?? row.Close ?? row.c ?? row.close_price ?? row.last_price ?? row.price ?? row.ltp),
+      toNumberOrNaN(row.high ?? row.High ?? row.h ?? row.high_price),
+      toNumberOrNaN(row.open ?? row.Open ?? row.o),
+      toNumberOrNaN(row.low ?? row.Low ?? row.l),
+    ]);
+    return { ts, price };
+  }
+
+  return { ts: null, price: NaN };
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────────
@@ -77,10 +149,11 @@ const CustomTooltip = ({ active, payload, label }) => {
   
   const data = payload[0]?.payload;
   if (!data) return null;
+  const displayLabel = Number.isFinite(Number(label)) ? formatDateLabel(Number(label)) : label;
   
   return (
     <div style={{ background: "#0d1a26", border: "1px solid #1e3a52", borderRadius: 8, padding: "8px 14px", fontSize: 12 }}>
-      <div style={{ color: "#8899aa", marginBottom: 4 }}>{label}</div>
+      <div style={{ color: "#8899aa", marginBottom: 4 }}>{displayLabel}</div>
       {data.actual !== null && (
         <div style={{ color: "#4a9eff", fontWeight: 600 }}>
           Actual: ${data.actual}
@@ -88,7 +161,7 @@ const CustomTooltip = ({ active, payload, label }) => {
       )}
       {data.predicted !== null && (
         <div style={{ color: "#00e5a0", fontWeight: 600 }}>
-          Predicted: ${data.predicted}
+          Forecast: ${data.predicted}
         </div>
       )}
       {data.lower !== null && data.upper !== null && (
@@ -145,7 +218,7 @@ export default function StockDashboard() {
       const isin = ticker;
       const end = new Date();
       const start = new Date();
-      start.setDate(end.getDate() - 30);
+      start.setDate(end.getDate() - 180);
       const fmt = d => d.toISOString().slice(0, 10);
 
       const histResp = await fetch(`${API_BASE}/api/historical-candles`, {
@@ -156,49 +229,131 @@ export default function StockDashboard() {
       if (!histResp.ok) throw new Error(`History fetch failed: ${histResp.status}`);
       const histJson = await histResp.json();
 
-      // Map server candle data -> history array with date & price (use Close)
-      // Server returns `data` as list of lists: [Timestamp, Open, High, Low, Close, Volume, Open Interest]
-      let history = (histJson.data || []).map(row => ({
-        date: new Date(row[0]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        price: +row[4]
-      }));
-      // Ensure history is chronological (oldest -> newest) so lastPrice is the latest value
-      if (history.length > 1) {
-        const firstTs = new Date(history[0].date).getTime();
-        const lastTs = new Date(history[history.length - 1].date).getTime();
-        if (firstTs > lastTs) history = history.slice().reverse();
+      const candleRows = getCandleRows(histJson);
+      const rawHistory = candleRows
+        .map((row, idx) => {
+          const { ts, price } = extractCandlePoint(row);
+          if (!Number.isFinite(price)) return null;
+          return { idx, ts, price: +price.toFixed(2) };
+        })
+        .filter(Boolean);
+
+      // Keep data even when some timestamps are invalid by synthesizing missing points.
+      const historySeed = rawHistory
+        .slice()
+        .sort((a, b) => {
+          if (a.ts === null && b.ts === null) return a.idx - b.idx;
+          if (a.ts === null) return 1;
+          if (b.ts === null) return -1;
+          return a.ts - b.ts;
+        });
+
+      const historyBaseTs =
+        historySeed.find((row) => row.ts !== null)?.ts ??
+        (Date.now() - historySeed.length * 86400000);
+
+      const history = historySeed
+        .map((row, i) => {
+          const ts = row.ts ?? (historyBaseTs + i * 86400000);
+          return {
+            ts,
+            dateLabel: formatDateLabel(ts),
+            price: row.price,
+          };
+        })
+        .sort((a, b) => a.ts - b.ts);
+
+      if (!history.length) {
+        console.warn(`No usable historical points returned for ${ticker}`, candleRows?.[0]);
       }
 
-        // Prediction endpoint
-        const predResp = await fetch(`/api/predict`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ isin, start_date: fmt(start), end_date: fmt(end), interval: 'day', count: 1 })
+      let predJson = {};
+      try {
+        const predResp = await fetch(`${API_BASE}/api/predict`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isin, start_date: fmt(start), end_date: fmt(end), interval: "day", count: 1 }),
         });
-        if (!predResp.ok) throw new Error(`Predict fetch failed: ${predResp.status}`);
-        const predJson = await predResp.json();
+        if (predResp.ok) {
+          predJson = await predResp.json();
+        } else {
+          console.warn(`Predict fetch failed for ${ticker}: ${predResp.status}`);
+        }
+      } catch (predErr) {
+        console.warn(`Predict fetch error for ${ticker}:`, predErr);
+      }
 
-      const lastPrice = history.length ? history[history.length - 1].price : predJson.predicted_high || 0;
-      const predicted = Number.isFinite(+predJson.predicted_high)
+      const predictionContainer =
+        predJson?.predicted_high && typeof predJson.predicted_high === "object"
+          ? predJson.predicted_high
+          : predJson;
+
+      const predictedHigh = Number(predictionContainer?.predicted_high ?? predJson?.predicted_high);
+      const intervalLow = Number(predictionContainer?.p10 ?? predJson?.p10);
+      const intervalHigh = Number(predictionContainer?.p90 ?? predJson?.p90);
+
+      const lastPrice = history.length
+        ? history[history.length - 1].price
+        : Number.isFinite(predictedHigh)
+          ? predictedHigh
+          : 0;
+
+      const baseTs = history.length ? history[history.length - 1].ts : Date.now();
+      let low = Number.isFinite(intervalLow) ? intervalLow : predictedHigh;
+      let high = Number.isFinite(intervalHigh) ? intervalHigh : predictedHigh;
+      if (Number.isFinite(low) && Number.isFinite(high) && low > high) {
+        [low, high] = [high, low];
+      }
+      const predicted = Number.isFinite(predictedHigh)
         ? [{
-            date: new Date(Date.now() + 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            price: +(+predJson.predicted_high).toFixed(2),
-            lower: +(+predJson.predicted_high).toFixed(2),
-            upper: +(+predJson.predicted_high).toFixed(2),
+            ts: baseTs + 86400000,
+            dateLabel: formatDateLabel(baseTs + 86400000),
+            price: +predictedHigh.toFixed(2),
+            lower: +low.toFixed(2),
+            upper: +high.toFixed(2),
           }]
         : [];
+
+      const backtest = (predJson.backtest || [])
+        .map((point) => {
+          const ts = normalizeTimestamp(point.timestamp || point.date);
+          const actualHigh = Number(point.actual_high ?? point.actual);
+          const predictedValue = Number(point.predicted_high ?? point.predicted);
+          if (ts === null || !Number.isFinite(actualHigh) || !Number.isFinite(predictedValue)) {
+            return null;
+          }
+          return {
+            ts,
+            dateLabel: formatDateLabel(ts),
+            actual: +actualHigh.toFixed(2),
+            predicted: +predictedValue.toFixed(2),
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.ts - b.ts);
+
+      const confidenceValue = Number(predJson.confidence);
+      const confidence =
+        Number.isFinite(confidenceValue)
+          ? confidenceValue
+          : predJson.confidence === "high"
+            ? 80
+            : predJson.confidence === "moderate"
+              ? 50
+              : 0;
 
       const dataObj = {
         ticker: isin,
         name: histJson.isin || isin,
         history,
+        backtest,
         predicted,
         lastPrice: +lastPrice,
         change: history.length ? +(lastPrice - history[0].price).toFixed(2) : 0,
         changePct: history.length ? +(((lastPrice - history[0].price) / history[0].price) * 100).toFixed(2) : 0,
         signal: predJson.signal || 'NO DATA',
         signalColor: predJson.signalColor || '#778899',
-        confidence: Number.isFinite(+predJson.confidence) ? +predJson.confidence : 0,
+        confidence,
         riskScore: Number.isFinite(+predJson.riskScore) ? +predJson.riskScore : 0,
         trend: predJson.trend || 'Neutral',
         trendStrength: Number.isFinite(+predJson.trendStrength) ? +predJson.trendStrength : 0,
@@ -249,40 +404,19 @@ export default function StockDashboard() {
   }, []);
 
   useEffect(() => { loadStock(selected); }, [selected]);
-  // Pre-load all on mount (use remote stocks when available)
-  useEffect(() => { 
-    const list = remoteStocks || stocks;
-    list.forEach(s => loadStock(s.ticker));
-  }, [remoteStocks]);
 
   const data = stockData[selected];
   const meta = (remoteStocks || stocks).find(s => s.ticker === selected) || {};
   const todayPrice = meta.last_price ?? data?.lastPrice ?? null;
   const predictedVal = data?.predicted?.[0]?.price ?? null;
   
-  // Create chart data with proper structure for historical and predicted data
-  const chartData = data ? [
-    // Historical data points
-    ...data.history.map(h => ({ 
-      date: h.date, 
-      actual: h.price, 
-      predicted: null, 
-      lower: null, 
-      upper: null,
-      isHistorical: true 
-    })),
-    // Predicted data points
-    ...data.predicted.map(p => ({ 
-      date: p.date, 
-      actual: null, 
-      predicted: p.price, 
-      lower: p.lower, 
-      upper: p.upper,
-      isHistorical: false 
-    })),
-  ].sort((a, b) => new Date(a.date) - new Date(b.date)) : []; // Ensure chronological order
-  
-  const splitIdx = data ? data.history.length - 1 : 0;
+  // Chart should show only actual historical data for the last 15 days.
+  const chartHistory = data?.history ? data.history.slice(-15) : [];
+  const chartData = chartHistory.map((h) => ({
+    ts: h.ts,
+    dateLabel: h.dateLabel,
+    actual: h.price,
+  }));
 
   const trendColor = data?.trend === "Bullish" ? "#00e5a0" : data?.trend === "Bearish" ? "#f87171" : "#facc15";
 
@@ -373,63 +507,38 @@ export default function StockDashboard() {
             {/* Chart */}
             <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: "20px 16px", marginBottom: 20 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, paddingRight: 8 }}>
-                <span style={{ fontSize: 12, color: "#667788", letterSpacing: 1 }}>PRICE HISTORY & 14-DAY PREDICTION</span>
+                <span style={{ fontSize: 12, color: "#667788", letterSpacing: 1 }}>LAST 15 DAYS · ACTUAL PRICE</span>
                 <div style={{ display: "flex", gap: 16, fontSize: 11 }}>
                   <span style={{ color: "#4a9eff" }}>── Actual</span>
-                  <span style={{ color: "#00e5a0" }}>── Predicted</span>
-                  <span style={{ color: "#00e5a030" }}>▓ Confidence Band</span>
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={260}>
-                <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-                  <defs>
-                    <linearGradient id="predGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#00e5a0" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="#00e5a0" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
+                <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                   <CartesianGrid stroke="#1a2a3a" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="date" tick={{ fill: "#445566", fontSize: 10 }} tickLine={false} axisLine={false} interval={Math.floor(chartData.length / 8)} />
+                  <XAxis
+                    type="number"
+                    dataKey="ts"
+                    scale="time"
+                    domain={["dataMin", "dataMax"]}
+                    tick={{ fill: "#445566", fontSize: 10 }}
+                    tickFormatter={(v) => formatDateLabel(Number(v))}
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={28}
+                  />
                   <YAxis tick={{ fill: "#445566", fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `$${v}`} width={52} />
                   <Tooltip content={<CustomTooltip />} />
-                  <ReferenceLine x={data.history[data.history.length - 1]?.date} stroke="#2a3a4a" strokeDasharray="4 4" label={{ value: "NOW", fill: "#445566", fontSize: 10 }} />
-                  {/* Confidence band - only for predicted data */}
-                  <Area 
-                    type="monotone" 
-                    dataKey="upper" 
-                    stroke="none" 
-                    fill="#00e5a0" 
-                    fillOpacity={0.07} 
-                    connectNulls={false}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="lower" 
-                    stroke="none" 
-                    fill="#060e17" 
-                    fillOpacity={1} 
-                    connectNulls={false}
-                  />
-                  {/* Historical price line */}
+                  <ReferenceLine x={chartHistory[chartHistory.length - 1]?.ts} stroke="#2a3a4a" strokeDasharray="4 4" label={{ value: "NOW", fill: "#445566", fontSize: 10 }} />
+                  {/* Actual historical line */}
                   <Line 
-                    type="monotone" 
+                    type="linear" 
                     dataKey="actual" 
                     stroke="#4a9eff" 
                     strokeWidth={2} 
-                    dot={false} 
+                    dot={chartData.length <= 120}
                     connectNulls={false}
                   />
-                  {/* Predicted price line */}
-                  <Line 
-                    type="monotone" 
-                    dataKey="predicted" 
-                    stroke="#00e5a0" 
-                    strokeWidth={2} 
-                    dot={false} 
-                    strokeDasharray="5 3" 
-                    connectNulls={false}
-                  />
-                </AreaChart>
+                </LineChart>
               </ResponsiveContainer>
             </div>
 
