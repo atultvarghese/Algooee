@@ -54,6 +54,17 @@ function toNumberOrNaN(value) {
   return Number.isFinite(n) ? n : NaN;
 }
 
+const INR_FORMATTER = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  maximumFractionDigits: 2,
+});
+
+function formatINR(value) {
+  const n = toNumberOrNaN(value);
+  return Number.isFinite(n) ? INR_FORMATTER.format(n) : "—";
+}
+
 function firstFinite(values) {
   for (const v of values) {
     if (Number.isFinite(v)) return v;
@@ -156,17 +167,17 @@ const CustomTooltip = ({ active, payload, label }) => {
       <div style={{ color: "#8899aa", marginBottom: 4 }}>{displayLabel}</div>
       {data.actual !== null && (
         <div style={{ color: "#4a9eff", fontWeight: 600 }}>
-          Actual: ${data.actual}
+          Actual: {formatINR(data.actual)}
         </div>
       )}
       {data.predicted !== null && (
         <div style={{ color: "#00e5a0", fontWeight: 600 }}>
-          Forecast: ${data.predicted}
+          Forecast: {formatINR(data.predicted)}
         </div>
       )}
       {data.lower !== null && data.upper !== null && (
         <div style={{ color: "#00e5a030", fontSize: 10, marginTop: 2 }}>
-          Range: ${data.lower} - ${data.upper}
+          Range: {formatINR(data.lower)} - {formatINR(data.upper)}
         </div>
       )}
     </div>
@@ -194,7 +205,7 @@ function StockCard({ ticker, selected, data, onClick, name, meta }) {
         <SignalBadge signal={data?.signal} color={data?.signalColor} />
       </div>
       <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 18, color: "#e8f4ff", fontWeight: 700 }}>${displayLast}</span>
+        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 18, color: "#e8f4ff", fontWeight: 700 }}>{formatINR(displayLast)}</span>
         <span style={{ fontSize: 12, color: up ? "#4ade80" : "#f87171", fontWeight: 600 }}>{up ? "▲" : "▼"} {Math.abs(data?.changePct ?? 0)}%</span>
       </div>
     </div>
@@ -410,8 +421,8 @@ export default function StockDashboard() {
   const todayPrice = meta.last_price ?? data?.lastPrice ?? null;
   const predictedVal = data?.predicted?.[0]?.price ?? null;
   
-  // Chart should show only actual historical data for the last 15 days.
-  const chartHistory = data?.history ? data.history.slice(-15) : [];
+  // Chart should show only actual historical data for the last 30 days.
+  const chartHistory = data?.history ? data.history.slice(-30) : [];
   const chartData = chartHistory.map((h) => ({
     ts: h.ts,
     dateLabel: h.dateLabel,
@@ -484,9 +495,9 @@ export default function StockDashboard() {
                 </div>
                 <div style={{ display: "flex", gap: 12, marginTop: 6, alignItems: "center" }}>
                   <div>
-                    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 22, color: "#e8f4ff", fontWeight: 700 }}>${todayPrice ?? data?.lastPrice ?? "—"}</div>
+                    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 22, color: "#e8f4ff", fontWeight: 700 }}>{formatINR(todayPrice ?? data?.lastPrice)}</div>
                     <div style={{ fontSize: 12, color: "#8899aa", marginTop: 4 }}>
-                      Today: {todayPrice ? `$${todayPrice}` : "—"} · Predicted: {predictedVal ? `$${predictedVal}` : "—"}
+                      Today: {formatINR(todayPrice)} · Predicted: {formatINR(predictedVal)}
                     </div>
                   </div>
                   <span style={{ color: data?.changePct >= 0 ? "#4ade80" : "#f87171", fontSize: 14, fontWeight: 600 }}>
@@ -507,7 +518,7 @@ export default function StockDashboard() {
             {/* Chart */}
             <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: "20px 16px", marginBottom: 20 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, paddingRight: 8 }}>
-                <span style={{ fontSize: 12, color: "#667788", letterSpacing: 1 }}>LAST 15 DAYS · ACTUAL PRICE</span>
+                <span style={{ fontSize: 12, color: "#667788", letterSpacing: 1 }}>LAST 30 DAYS · ACTUAL PRICE</span>
                 <div style={{ display: "flex", gap: 16, fontSize: 11 }}>
                   <span style={{ color: "#4a9eff" }}>── Actual</span>
                 </div>
@@ -526,7 +537,7 @@ export default function StockDashboard() {
                     axisLine={false}
                     minTickGap={28}
                   />
-                  <YAxis tick={{ fill: "#445566", fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `$${v}`} width={52} />
+                  <YAxis tick={{ fill: "#445566", fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatINR(v)} width={68} />
                   <Tooltip content={<CustomTooltip />} />
                   <ReferenceLine x={chartHistory[chartHistory.length - 1]?.ts} stroke="#2a3a4a" strokeDasharray="4 4" label={{ value: "NOW", fill: "#445566", fontSize: 10 }} />
                   {/* Actual historical line */}
@@ -589,8 +600,8 @@ export default function StockDashboard() {
                 {[
                   { label: "RSI (14)", value: data.indicators.rsi, note: data.indicators.rsi > 70 ? "Overbought" : data.indicators.rsi < 30 ? "Oversold" : "Neutral", color: data.indicators.rsi > 70 ? "#f87171" : data.indicators.rsi < 30 ? "#4ade80" : "#facc15" },
                   { label: "MACD", value: data.indicators.macd, note: data.indicators.macd > 0 ? "Bullish" : "Bearish", color: data.indicators.macd > 0 ? "#4ade80" : "#f87171" },
-                  { label: "EMA 20", value: `$${data.indicators.ema20}`, note: data.lastPrice > data.indicators.ema20 ? "Above" : "Below", color: data.lastPrice > data.indicators.ema20 ? "#4ade80" : "#f87171" },
-                  { label: "EMA 50", value: `$${data.indicators.ema50}`, note: data.lastPrice > data.indicators.ema50 ? "Above" : "Below", color: data.lastPrice > data.indicators.ema50 ? "#4ade80" : "#f87171" },
+                  { label: "EMA 20", value: formatINR(data.indicators.ema20), note: data.lastPrice > data.indicators.ema20 ? "Above" : "Below", color: data.lastPrice > data.indicators.ema20 ? "#4ade80" : "#f87171" },
+                  { label: "EMA 50", value: formatINR(data.indicators.ema50), note: data.lastPrice > data.indicators.ema50 ? "Above" : "Below", color: data.lastPrice > data.indicators.ema50 ? "#4ade80" : "#f87171" },
                   { label: "Volume", value: data.indicators.volume, note: "Avg Daily", color: "#778899" },
                 ].map(ind => (
                   <div key={ind.label} style={{ background: "#060e17", border: "1px solid #1a2a3a", borderRadius: 8, padding: "12px 14px" }}>
