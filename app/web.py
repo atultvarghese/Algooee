@@ -32,6 +32,8 @@ class StockPredictionRequest(BaseModel):
     end_date: str
     interval: str = "day"
     count: int = 1
+    forecast_days: int = 5
+    backtest_days: int = 10
 
 class HistoricalCandleResponse(BaseModel):
     isin: str
@@ -122,7 +124,10 @@ async def predict_stock(request: StockPredictionRequest):
             status_code=503,
             detail="Upstox API client not configured"
         )
-    cache_key = f"{request.isin}|{request.start_date}|{request.end_date}|{request.interval}|{request.count}"
+    cache_key = (
+        f"{request.isin}|{request.start_date}|{request.end_date}|{request.interval}|"
+        f"{request.count}|{request.forecast_days}|{request.backtest_days}"
+    )
     now_ts = time.time()
     cached = PREDICTION_CACHE.get(cache_key)
     if cached and (now_ts - cached["ts"] <= PREDICTION_CACHE_TTL_SECONDS):
@@ -153,7 +158,10 @@ async def predict_stock(request: StockPredictionRequest):
         predictor.feature_engineering()
         predictor.train_model()
         forecast = predictor.predict_next_day()
-        backtest = predictor.get_backtest_points(limit=15)
+        future_days = max(1, min(int(request.forecast_days or 5), 15))
+        backtest_days = max(1, min(int(request.backtest_days or 10), 60))
+        future_forecast = predictor.predict_future_days(days=future_days)
+        backtest = predictor.get_backtest_points(limit=backtest_days)
 
         # Compatibility fields + richer payload
         predicted_high = float(forecast.get("predicted_high", 0.0))
@@ -172,6 +180,7 @@ async def predict_stock(request: StockPredictionRequest):
             "confidence": confidence,
             "forecast": forecast,
             "backtest": backtest,
+            "future_forecast": future_forecast,
         }
         PREDICTION_CACHE[cache_key] = {"ts": now_ts, "value": result}
         return result

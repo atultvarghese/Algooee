@@ -283,7 +283,15 @@ export default function StockDashboard() {
         const predResp = await fetch(`${API_BASE}/api/predict`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isin, start_date: fmt(start), end_date: fmt(end), interval: "day", count: 1 }),
+          body: JSON.stringify({
+            isin,
+            start_date: fmt(start),
+            end_date: fmt(end),
+            interval: "day",
+            count: 1,
+            forecast_days: 5,
+            backtest_days: 20,
+          }),
         });
         if (predResp.ok) {
           predJson = await predResp.json();
@@ -310,20 +318,44 @@ export default function StockDashboard() {
           : 0;
 
       const baseTs = history.length ? history[history.length - 1].ts : Date.now();
-      let low = Number.isFinite(intervalLow) ? intervalLow : predictedHigh;
-      let high = Number.isFinite(intervalHigh) ? intervalHigh : predictedHigh;
-      if (Number.isFinite(low) && Number.isFinite(high) && low > high) {
-        [low, high] = [high, low];
+      const futureForecast = (predJson.future_forecast || [])
+        .map((point, idx) => {
+          const fallbackTs = baseTs + (idx + 1) * 86400000;
+          const ts = normalizeTimestamp(point.timestamp || point.date || fallbackTs);
+          const value = Number(point.predicted_high ?? point.predicted ?? point.price);
+          let lower = Number(point.p10 ?? point.lower);
+          let upper = Number(point.p90 ?? point.upper);
+          if (ts === null || !Number.isFinite(value)) return null;
+          if (Number.isFinite(lower) && Number.isFinite(upper) && lower > upper) {
+            [lower, upper] = [upper, lower];
+          }
+          return {
+            ts,
+            dateLabel: formatDateLabel(ts),
+            price: +value.toFixed(2),
+            lower: Number.isFinite(lower) ? +lower.toFixed(2) : null,
+            upper: Number.isFinite(upper) ? +upper.toFixed(2) : null,
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.ts - b.ts)
+        .slice(0, 5);
+
+      let predicted = futureForecast;
+      if (!predicted.length && Number.isFinite(predictedHigh)) {
+        let low = Number.isFinite(intervalLow) ? intervalLow : predictedHigh;
+        let high = Number.isFinite(intervalHigh) ? intervalHigh : predictedHigh;
+        if (Number.isFinite(low) && Number.isFinite(high) && low > high) {
+          [low, high] = [high, low];
+        }
+        predicted = [{
+          ts: baseTs + 86400000,
+          dateLabel: formatDateLabel(baseTs + 86400000),
+          price: +predictedHigh.toFixed(2),
+          lower: Number.isFinite(low) ? +low.toFixed(2) : null,
+          upper: Number.isFinite(high) ? +high.toFixed(2) : null,
+        }];
       }
-      const predicted = Number.isFinite(predictedHigh)
-        ? [{
-            ts: baseTs + 86400000,
-            dateLabel: formatDateLabel(baseTs + 86400000),
-            price: +predictedHigh.toFixed(2),
-            lower: +low.toFixed(2),
-            upper: +high.toFixed(2),
-          }]
-        : [];
 
       const backtest = (predJson.backtest || [])
         .map((point) => {
@@ -421,13 +453,32 @@ export default function StockDashboard() {
   const todayPrice = meta.last_price ?? data?.lastPrice ?? null;
   const predictedVal = data?.predicted?.[0]?.price ?? null;
   
-  // Chart should show only actual historical data for the last 30 days.
-  const chartHistory = data?.history ? data.history.slice(-30) : [];
-  const chartData = chartHistory.map((h) => ({
-    ts: h.ts,
-    dateLabel: h.dateLabel,
-    actual: h.price,
-  }));
+  // Chart shows actual for last 10 trading days + predicted line for last 10 and next 5.
+  const chartActualHistory = data?.history ? data.history.slice(-10) : [];
+  const chartBacktest = data?.backtest ? data.backtest.slice(-10) : [];
+  const chartFuture = data?.predicted ? data.predicted.slice(0, 5) : [];
+
+  const chartMap = new Map();
+  chartActualHistory.forEach((row) => {
+    chartMap.set(row.ts, { ts: row.ts, dateLabel: row.dateLabel, actual: row.price, predicted: null, lower: null, upper: null });
+  });
+  chartBacktest.forEach((row) => {
+    const existing = chartMap.get(row.ts) || { ts: row.ts, dateLabel: row.dateLabel, actual: null, predicted: null, lower: null, upper: null };
+    existing.predicted = row.predicted;
+    if (existing.actual === null && Number.isFinite(row.actual)) {
+      existing.actual = row.actual;
+    }
+    chartMap.set(row.ts, existing);
+  });
+  chartFuture.forEach((row) => {
+    const existing = chartMap.get(row.ts) || { ts: row.ts, dateLabel: row.dateLabel, actual: null, predicted: null, lower: null, upper: null };
+    existing.predicted = row.price;
+    existing.lower = Number.isFinite(row.lower) ? row.lower : null;
+    existing.upper = Number.isFinite(row.upper) ? row.upper : null;
+    chartMap.set(row.ts, existing);
+  });
+  const chartData = Array.from(chartMap.values()).sort((a, b) => a.ts - b.ts);
+  const latestActualTs = chartActualHistory[chartActualHistory.length - 1]?.ts;
 
   const trendColor = data?.trend === "Bullish" ? "#00e5a0" : data?.trend === "Bearish" ? "#f87171" : "#facc15";
 
@@ -503,7 +554,7 @@ export default function StockDashboard() {
                   <span style={{ color: data?.changePct >= 0 ? "#4ade80" : "#f87171", fontSize: 14, fontWeight: 600 }}>
                     {data?.changePct >= 0 ? "▲" : "▼"} {Math.abs(data?.change ?? 0)} ({Math.abs(data?.changePct ?? 0)}%)
                   </span>
-                  <span style={{ fontSize: 11, color: "#445566" }}>30D</span>
+                  <span style={{ fontSize: 11, color: "#445566" }}>15D</span>
                 </div>
               </div>
               <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
@@ -518,9 +569,10 @@ export default function StockDashboard() {
             {/* Chart */}
             <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: "20px 16px", marginBottom: 20 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, paddingRight: 8 }}>
-                <span style={{ fontSize: 12, color: "#667788", letterSpacing: 1 }}>LAST 30 DAYS · ACTUAL PRICE</span>
+                <span style={{ fontSize: 12, color: "#667788", letterSpacing: 1 }}>LAST 10 DAYS + NEXT 5 DAYS · ACTUAL & PREDICTED</span>
                 <div style={{ display: "flex", gap: 16, fontSize: 11 }}>
                   <span style={{ color: "#4a9eff" }}>── Actual</span>
+                  <span style={{ color: "#00e5a0" }}>── Predicted</span>
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={260}>
@@ -539,7 +591,7 @@ export default function StockDashboard() {
                   />
                   <YAxis tick={{ fill: "#445566", fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatINR(v)} width={68} />
                   <Tooltip content={<CustomTooltip />} />
-                  <ReferenceLine x={chartHistory[chartHistory.length - 1]?.ts} stroke="#2a3a4a" strokeDasharray="4 4" label={{ value: "NOW", fill: "#445566", fontSize: 10 }} />
+                  <ReferenceLine x={latestActualTs} stroke="#2a3a4a" strokeDasharray="4 4" label={{ value: "NOW", fill: "#445566", fontSize: 10 }} />
                   {/* Actual historical line */}
                   <Line 
                     type="linear" 
@@ -548,6 +600,14 @@ export default function StockDashboard() {
                     strokeWidth={2} 
                     dot={chartData.length <= 120}
                     connectNulls={false}
+                  />
+                  <Line
+                    type="linear"
+                    dataKey="predicted"
+                    stroke="#00e5a0"
+                    strokeWidth={2}
+                    dot={chartData.length <= 120}
+                    connectNulls={true}
                   />
                 </LineChart>
               </ResponsiveContainer>

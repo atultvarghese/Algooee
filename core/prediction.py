@@ -15,6 +15,7 @@ class Prediction:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
         df.dropna(subset=["Timestamp", "Open", "High", "Low", "Close"], inplace=True)
         df.sort_values('Timestamp', inplace=True)
+        self.raw_df = df.copy()
         self.df = df
         self.features = []
         self.model = HistGradientBoostingRegressor(
@@ -43,9 +44,10 @@ class Prediction:
         rs = avg_gain / avg_loss.replace(0, pd.NA)
         return 100 - (100 / (1 + rs))
 
-    def feature_engineering(self):
-        """Create lag/rolling + technical features."""
-        df = self.df.copy()
+    @staticmethod
+    def _compute_feature_columns(df: pd.DataFrame) -> pd.DataFrame:
+        """Compute model feature columns on top of raw OHLCV rows."""
+        df = df.copy()
         close = df['Close'].astype(float)
 
         # Price dynamics
@@ -59,11 +61,11 @@ class Prediction:
         df['SMA_5'] = close.rolling(5).mean()
         df['SMA_10'] = close.rolling(10).mean()
         df['SMA_20'] = close.rolling(20).mean()
-        df['EMA_12'] = self._ema(close, 12)
-        df['EMA_26'] = self._ema(close, 26)
+        df['EMA_12'] = Prediction._ema(close, 12)
+        df['EMA_26'] = Prediction._ema(close, 26)
         df['MACD'] = df['EMA_12'] - df['EMA_26']
-        df['MACD_Signal'] = self._ema(df['MACD'], 9)
-        df['RSI_14'] = self._rsi(close, 14)
+        df['MACD_Signal'] = Prediction._ema(df['MACD'], 9)
+        df['RSI_14'] = Prediction._rsi(close, 14)
 
         # Volatility
         df['Volatility_5'] = close.rolling(5).std()
@@ -81,6 +83,34 @@ class Prediction:
             df[f'Prev_Close_{lag}'] = df['Close'].shift(lag)
             df[f'Prev_Open_{lag}'] = df['Open'].shift(lag)
             df[f'Prev_Range_{lag}'] = df['Range'].shift(lag)
+
+        return df
+
+    @staticmethod
+    def _next_business_day(ts: pd.Timestamp) -> pd.Timestamp:
+        next_day = pd.Timestamp(ts) + pd.Timedelta(days=1)
+        while next_day.weekday() >= 5:
+            next_day += pd.Timedelta(days=1)
+        return next_day
+
+    def _latest_feature_row_from_prices(self, price_df: pd.DataFrame):
+        if not self.features:
+            return None
+        enriched = self._compute_feature_columns(price_df)
+        if enriched.empty:
+            return None
+        latest = enriched.iloc[-1]
+        values = []
+        for feature in self.features:
+            val = latest.get(feature, np.nan)
+            if pd.isna(val) or not np.isfinite(float(val)):
+                return None
+            values.append(float(val))
+        return pd.DataFrame([values], columns=self.features)
+
+    def feature_engineering(self):
+        """Create lag/rolling + technical features."""
+        df = self._compute_feature_columns(self.raw_df)
 
         # Target variable — next day’s High
         df['Target_High'] = df['High'].shift(-1)
@@ -136,7 +166,9 @@ class Prediction:
 
     def predict_next_day(self):
         """Predict next day's High using latest data + simple interval from MAE."""
-        latest = self.df.iloc[-1:][self.features]
+        latest = self._latest_feature_row_from_prices(self.raw_df)
+        if latest is None:
+            latest = self.df.iloc[-1:][self.features]
         next_high = float(self.model.predict(latest)[0])
 
         mae = float(self.last_mae or 0.0)
@@ -156,6 +188,72 @@ class Prediction:
             f"(p10={result['p10']:.2f}, p90={result['p90']:.2f})"
         )
         return result
+
+    def predict_future_days(self, days: int = 5):
+        """
+        Forecast next N trading days by rolling the model forward.
+        Uses model outputs to synthesize a conservative candle path for feature updates.
+        """
+        horizon = max(0, int(days))
+        if horizon == 0:
+            return []
+        if not self.features:
+            raise ValueError("Features not prepared. Call feature_engineering() first.")
+
+        required_cols = ["Timestamp", "Open", "High", "Low", "Close", "Volume", "Open Interest"]
+        sim_df = self.raw_df[required_cols].copy().sort_values("Timestamp").reset_index(drop=True)
+        if sim_df.empty:
+            return []
+
+        forecasts = []
+        base_mae = float(self.last_mae or 0.0)
+
+        for step in range(1, horizon + 1):
+            latest_features = self._latest_feature_row_from_prices(sim_df)
+            if latest_features is None:
+                break
+
+            predicted_high = float(self.model.predict(latest_features)[0])
+            interval = max(base_mae * (1.0 + 0.25 * (step - 1)), abs(predicted_high) * 0.006)
+            p10 = max(0.0, predicted_high - interval)
+            p90 = max(0.0, predicted_high + interval)
+
+            prev = sim_df.iloc[-1]
+            next_ts = self._next_business_day(prev["Timestamp"])
+            forecasts.append({
+                "timestamp": next_ts.strftime("%Y-%m-%d"),
+                "predicted_high": float(predicted_high),
+                "p10": float(p10),
+                "p90": float(p90),
+                "step": step,
+            })
+
+            # Synthesize a plausible next candle so step+1 can be predicted recursively.
+            last_close = float(prev["Close"])
+            last_high = float(prev["High"])
+            last_low = float(prev["Low"])
+            last_range = max(last_high - last_low, 0.0)
+            move = predicted_high - last_close
+
+            next_open = max(0.0, last_close)
+            next_close = max(0.0, last_close + 0.35 * move)
+            synthetic_range = max(last_range * 0.8, abs(move) * 0.6, max(base_mae, abs(last_close) * 0.002))
+            next_low = max(0.0, min(next_open, next_close, predicted_high) - 0.35 * synthetic_range)
+            next_high = max(predicted_high, next_open, next_close, next_low)
+            next_volume = float(prev.get("Volume", 0.0))
+            next_oi = float(prev.get("Open Interest", 0.0))
+
+            sim_df.loc[len(sim_df)] = {
+                "Timestamp": next_ts,
+                "Open": next_open,
+                "High": next_high,
+                "Low": next_low,
+                "Close": next_close,
+                "Volume": next_volume,
+                "Open Interest": next_oi,
+            }
+
+        return forecasts
 
     def get_backtest_points(self, limit: int = 15):
         """Return recent backtest points (actual vs predicted) as JSON-friendly rows."""
