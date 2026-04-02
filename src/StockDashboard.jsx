@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine
@@ -7,112 +7,23 @@ import {
 // ── Config ──────────────────────────────────────────────────────────────────
 const API_BASE = "http://localhost:8000"; // ← change to your backend URL
 
-// `stocks` now comes exclusively from the backend; no built-in mock list.
-
-function generateMockData(ticker) {
-  const seed = ticker.charCodeAt(0) + ticker.charCodeAt(ticker.length - 1);
-  const base = 50 + (seed % 200); // More varied base prices
-  const volatility = 0.02 + (seed % 10) * 0.005; // Realistic volatility
-  const trend = (seed % 3) - 1; // -1 to 1 trend factor
-  
-  // Generate 60 days of historical data for better chart
-  const history = [];
-  let currentPrice = base;
-  
-  for (let i = 59; i >= 0; i--) {
-    const date = new Date(Date.now() - i * 86400000);
-    // Add some realistic market patterns: weekday effects, random walk with trend
-    const dayOfWeek = date.getDay();
-    const weekdayFactor = (dayOfWeek === 1 || dayOfWeek === 5) ? 0.002 : 0; // Slight Monday/Friday effect
-    const randomChange = (Math.random() - 0.5) * volatility * currentPrice;
-    const trendChange = trend * 0.001 * currentPrice;
-    
-    currentPrice += randomChange + trendChange + weekdayFactor * currentPrice;
-    currentPrice = Math.max(currentPrice, base * 0.5); // Floor price
-    
-    history.push({
-      date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      price: +currentPrice.toFixed(2),
-      volume: Math.floor((seed * 100000 + Math.random() * 500000) + 1000000) // Realistic volume
-    });
-  }
-  
-  const lastPrice = history[history.length - 1].price;
-  
-  // Generate 14-day predictions with confidence intervals
-  const predicted = [];
-  let predPrice = lastPrice;
-  const predVolatility = volatility * 1.2; // Predictions are more uncertain
-  
-  for (let i = 0; i < 14; i++) {
-    const date = new Date(Date.now() + (i + 1) * 86400000);
-    const randomChange = (Math.random() - 0.5) * predVolatility * predPrice;
-    const trendChange = trend * 0.0005 * predPrice; // Weaker trend in predictions
-    
-    predPrice += randomChange + trendChange;
-    predPrice = Math.max(predPrice, lastPrice * 0.7); // Don't crash too much
-    
-    const confidence = Math.max(20, 80 - i * 3); // Confidence decreases over time
-    const stdDev = (predVolatility * predPrice) * (1 + i * 0.1);
-    
-    predicted.push({
-      date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      price: +predPrice.toFixed(2),
-      lower: +(predPrice - stdDev * 1.96).toFixed(2), // 95% confidence interval
-      upper: +(predPrice + stdDev * 1.96).toFixed(2),
-      confidence: confidence
-    });
-  }
-  
-  // Calculate realistic technical indicators
-  const prices = history.map(h => h.price);
-  const gains = [], losses = [];
-  for (let i = 1; i < prices.length; i++) {
-    const change = prices[i] - prices[i-1];
-    gains.push(change > 0 ? change : 0);
-    losses.push(change < 0 ? -change : 0);
-  }
-  
-  const avgGain = gains.reduce((a, b) => a + b, 0) / gains.length;
-  const avgLoss = losses.reduce((a, b) => a + b, 0) / losses.length;
-  const rs = avgGain / avgLoss;
-  const rsi = +(100 - (100 / (1 + rs))).toFixed(1);
-  
-  // Simple MACD calculation (EMA12 - EMA26)
-  const ema12 = prices.slice(-12).reduce((a, b) => a + b, 0) / 12;
-  const ema26 = prices.slice(-26).reduce((a, b) => a + b, 0) / 26;
-  const macd = +(ema12 - ema26).toFixed(3);
-  
-  // EMAs
-  const ema20 = prices.slice(-20).reduce((a, b) => a + b, 0) / 20;
-  const ema50 = prices.slice(-50).reduce((a, b) => a + b, 0) / 50;
-  
-  // Volume average
-  const avgVolume = history.slice(-20).reduce((sum, h) => sum + h.volume, 0) / 20;
-  const volumeStr = avgVolume > 1000000 ? `${(avgVolume / 1000000).toFixed(1)}M` : `${(avgVolume / 1000).toFixed(0)}K`;
-  
-  const signal = rsi > 70 ? "SELL" : rsi < 30 ? "BUY" : macd > 0 && lastPrice > ema20 ? "STRONG BUY" : macd < 0 && lastPrice < ema20 ? "SELL" : "HOLD";
-  const signalColor = { "STRONG BUY": "#00e5a0", "BUY": "#4ade80", "HOLD": "#facc15", "SELL": "#f87171" };
-  
-  const confidence = Math.min(95, Math.max(45, 70 + (seed % 20) - Math.abs(trend) * 10));
-  const riskScore = Math.min(90, Math.max(10, 50 + (volatility * 1000) + Math.abs(trend) * 20));
-  const trendLabel = trend > 0.3 ? "Bullish" : trend < -0.3 ? "Bearish" : "Neutral";
-  const trendStrength = Math.abs(trend) * 100;
-  
+// `stocks` comes from backend. If data cannot be fetched, we show strict zero/default values.
+function buildEmptyStockData(ticker) {
   return {
     ticker,
-    history,
-    predicted,
-    lastPrice,
-    change: +(lastPrice - history[0].price).toFixed(2),
-    changePct: +(((lastPrice - history[0].price) / history[0].price) * 100).toFixed(2),
-    signal,
-    signalColor: signalColor[signal],
-    confidence,
-    riskScore,
-    trend: trendLabel,
-    trendStrength,
-    indicators: { rsi, macd, ema20: +ema20.toFixed(2), ema50: +ema50.toFixed(2), volume: volumeStr },
+    name: ticker,
+    history: [],
+    predicted: [],
+    lastPrice: 0,
+    change: 0,
+    changePct: 0,
+    signal: "NO DATA",
+    signalColor: "#778899",
+    confidence: 0,
+    riskScore: 0,
+    trend: "Neutral",
+    trendStrength: 0,
+    indicators: { rsi: 0, macd: 0, ema20: 0, ema50: 0, volume: 0 },
   };
 }
 
@@ -223,12 +134,11 @@ export default function StockDashboard() {
   const [selected, setSelected] = useState("");
   const [stockData, setStockData] = useState({});
   const [loading, setLoading] = useState(false);
-  const [apiMode, setApiMode] = useState(false); // toggle between mock and real API
   const [remoteStocks, setRemoteStocks] = useState(null);
 
-  // Fetch or generate data for a ticker
+  // Fetch data for a ticker
   async function loadStock(ticker) {
-    if (stockData[ticker]) return;
+    if (!ticker || stockData[ticker]) return;
     setLoading(true);
     try {
       // Always attempt to fetch historical + prediction data from backend
@@ -269,12 +179,14 @@ export default function StockDashboard() {
         const predJson = await predResp.json();
 
       const lastPrice = history.length ? history[history.length - 1].price : predJson.predicted_high || 0;
-      const predicted = Array.from({ length: 7 }, (_, i) => ({
-        date: new Date(Date.now() + (i + 1) * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        price: +(predJson.predicted_high + i * 0.1 || lastPrice + i * 0.1).toFixed(2),
-        lower: +(predJson.predicted_high - 1.5 || lastPrice - 1.5).toFixed(2),
-        upper: +(predJson.predicted_high + 1.5 || lastPrice + 1.5).toFixed(2),
-      }));
+      const predicted = Number.isFinite(+predJson.predicted_high)
+        ? [{
+            date: new Date(Date.now() + 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            price: +(+predJson.predicted_high).toFixed(2),
+            lower: +(+predJson.predicted_high).toFixed(2),
+            upper: +(+predJson.predicted_high).toFixed(2),
+          }]
+        : [];
 
       const dataObj = {
         ticker: isin,
@@ -284,19 +196,25 @@ export default function StockDashboard() {
         lastPrice: +lastPrice,
         change: history.length ? +(lastPrice - history[0].price).toFixed(2) : 0,
         changePct: history.length ? +(((lastPrice - history[0].price) / history[0].price) * 100).toFixed(2) : 0,
-        signal: predJson.signal || 'HOLD',
-        signalColor: predJson.confidence === 'high' ? '#00e5a0' : '#facc15',
-        confidence: typeof predJson.confidence === 'number' ? predJson.confidence : (predJson.confidence === 'high' ? 80 : 50),
-        riskScore: predJson.riskScore || 50,
+        signal: predJson.signal || 'NO DATA',
+        signalColor: predJson.signalColor || '#778899',
+        confidence: Number.isFinite(+predJson.confidence) ? +predJson.confidence : 0,
+        riskScore: Number.isFinite(+predJson.riskScore) ? +predJson.riskScore : 0,
         trend: predJson.trend || 'Neutral',
-        trendStrength: predJson.trendStrength || 50,
-        indicators: { rsi: predJson.rsi || 50, macd: predJson.macd || 0, ema20: +(lastPrice * 0.98).toFixed(2), ema50: +(lastPrice * 0.95).toFixed(2), volume: predJson.volume || 'N/A' }
+        trendStrength: Number.isFinite(+predJson.trendStrength) ? +predJson.trendStrength : 0,
+        indicators: {
+          rsi: Number.isFinite(+predJson.rsi) ? +predJson.rsi : 0,
+          macd: Number.isFinite(+predJson.macd) ? +predJson.macd : 0,
+          ema20: Number.isFinite(+predJson.ema20) ? +predJson.ema20 : 0,
+          ema50: Number.isFinite(+predJson.ema50) ? +predJson.ema50 : 0,
+          volume: predJson.volume ?? 0
+        }
       };
 
       setStockData(d => ({ ...d, [ticker]: dataObj }));
     } catch (e) {
-      console.error('Backend fetch failed, falling back to mock:', e);
-      setStockData(d => ({ ...d, [ticker]: generateMockData(ticker) }));
+      console.error('Backend fetch failed, using zero-value fallback:', e);
+      setStockData(d => ({ ...d, [ticker]: buildEmptyStockData(ticker) }));
     } finally {
       setLoading(false);
     }
@@ -386,12 +304,12 @@ export default function StockDashboard() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ fontSize: 11, color: "#445566" }}>DATA SOURCE</div>
-          <button onClick={() => setApiMode(m => !m)} style={{
-            background: apiMode ? "#00e5a022" : "#1a2a3a", border: `1px solid ${apiMode ? "#00e5a0" : "#2a3a4a"}`,
-            color: apiMode ? "#00e5a0" : "#778899", borderRadius: 20, padding: "4px 14px", fontSize: 11, cursor: "pointer", fontWeight: 600, letterSpacing: 1
+          <div style={{
+            background: "#1a2a3a", border: "1px solid #2a3a4a",
+            color: "#778899", borderRadius: 20, padding: "4px 14px", fontSize: 11, fontWeight: 600, letterSpacing: 1
           }}>
-            {apiMode ? "⚡ LIVE API" : "◎ MOCK DATA"}
-          </button>
+            LIVE API
+          </div>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#00e5a0", boxShadow: "0 0 8px #00e5a0", animation: "pulse 2s infinite" }} />
         </div>
       </div>
