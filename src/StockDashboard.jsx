@@ -18,8 +18,6 @@ function buildEmptyStockData(ticker) {
     lastPrice: 0,
     change: 0,
     changePct: 0,
-    signal: "NO DATA",
-    signalColor: "#778899",
     confidence: 0,
     mae: null,
     mape: null,
@@ -121,14 +119,6 @@ function extractCandlePoint(row) {
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────────
-function SignalBadge({ signal, color }) {
-  return (
-    <span style={{ background: color + "22", color, border: `1px solid ${color}55`, borderRadius: 4, padding: "2px 10px", fontSize: 11, fontWeight: 700, letterSpacing: 1 }}>
-      {signal}
-    </span>
-  );
-}
-
 function RiskMeter({ score }) {
   const color = score < 35 ? "#00e5a0" : score < 65 ? "#facc15" : "#f87171";
   const label = score < 35 ? "LOW" : score < 65 ? "MEDIUM" : "HIGH";
@@ -194,7 +184,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-function StockCard({ ticker, selected, data, onClick, name, meta }) {
+function StockCard({ ticker, selected, data, onClick, onRemove, name, meta }) {
   // allow rendering when only meta (server list) is available
   if (!data && !meta) return null;
   const up = (data?.changePct ?? 0) >= 0;
@@ -212,7 +202,29 @@ function StockCard({ ticker, selected, data, onClick, name, meta }) {
           <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: selected ? "#00e5a0" : "#cde" }}>{displayName}</div>
           <div style={{ fontSize: 10, color: "#556677", marginTop: 2 }}>{ticker}</div>
         </div>
-        <SignalBadge signal={data?.signal} color={data?.signalColor} />
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {typeof onRemove === "function" && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
+              title="Remove from watchlist"
+              style={{
+                background: "#2a1218",
+                color: "#f87171",
+                border: "1px solid #f8717155",
+                borderRadius: 6,
+                padding: "2px 6px",
+                fontSize: 10,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              X
+            </button>
+          )}
+        </div>
       </div>
       <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 18, color: "#e8f4ff", fontWeight: 700 }}>{formatINR(displayLast)}</span>
@@ -229,6 +241,263 @@ export default function StockDashboard() {
   const [stockData, setStockData] = useState({});
   const [loading, setLoading] = useState(false);
   const [remoteStocks, setRemoteStocks] = useState(null);
+  const [activePage, setActivePage] = useState("stock");
+
+  const [paperPortfolio, setPaperPortfolio] = useState(null);
+  const [paperLoading, setPaperLoading] = useState(false);
+  const [paperBusy, setPaperBusy] = useState(false);
+  const [paperError, setPaperError] = useState("");
+  const [paperNotice, setPaperNotice] = useState("");
+  const [tradeAmount, setTradeAmount] = useState("");
+  const [tradePrice, setTradePrice] = useState("");
+  const [fundAmount, setFundAmount] = useState("");
+  const [stockSearch, setStockSearch] = useState("");
+  const [addStockIsin, setAddStockIsin] = useState("");
+  const [addStockName, setAddStockName] = useState("");
+  const [stockBusy, setStockBusy] = useState(false);
+  const [stockNotice, setStockNotice] = useState("");
+  const [stockError, setStockError] = useState("");
+
+  async function refreshPaperPortfolio(showLoader = false) {
+    if (showLoader) setPaperLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/paper/portfolio`);
+      if (!res.ok) {
+        throw new Error(`Paper portfolio fetch failed: ${res.status}`);
+      }
+      const json = await res.json();
+      setPaperPortfolio(json);
+      setPaperError("");
+    } catch (err) {
+      console.error("Paper portfolio error:", err);
+      setPaperError("Unable to load paper trading data.");
+    } finally {
+      if (showLoader) setPaperLoading(false);
+    }
+  }
+
+  async function placePaperOrder(side) {
+    const amount = Number(tradeAmount);
+    if (!selected) {
+      setPaperError("Select a stock before placing an order.");
+      return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setPaperError("Enter a valid amount to trade.");
+      return;
+    }
+
+    const fallbackPrice = Number(todayPrice ?? data?.lastPrice);
+    const editedPrice = Number(tradePrice);
+    const executionPrice =
+      Number.isFinite(editedPrice) && editedPrice > 0
+        ? editedPrice
+        : Number.isFinite(fallbackPrice) && fallbackPrice > 0
+          ? fallbackPrice
+          : NaN;
+
+    if (!Number.isFinite(executionPrice) || executionPrice <= 0) {
+      setPaperError("Enter a valid execution price.");
+      return;
+    }
+
+    setPaperBusy(true);
+    setPaperError("");
+    setPaperNotice("");
+    try {
+      const res = await fetch(`${API_BASE}/api/paper/trade`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          isin: selected,
+          side,
+          amount,
+          price: executionPrice,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.detail || `Paper trade failed: ${res.status}`);
+      }
+      setPaperPortfolio(json.portfolio || null);
+      setPaperNotice(`${side.toUpperCase()} order executed successfully.`);
+      setTradeAmount("");
+    } catch (err) {
+      console.error("Paper trade error:", err);
+      setPaperError(err.message || "Paper trade failed.");
+    } finally {
+      setPaperBusy(false);
+    }
+  }
+
+  async function addPaperFunds() {
+    const amount = Number(fundAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setPaperError("Enter a valid funding amount.");
+      return;
+    }
+    setPaperBusy(true);
+    setPaperError("");
+    setPaperNotice("");
+    try {
+      const res = await fetch(`${API_BASE}/api/paper/admin/fund`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.detail || `Funding failed: ${res.status}`);
+      }
+      setPaperPortfolio(json);
+      setPaperNotice("Funds added to paper wallet.");
+      setFundAmount("");
+    } catch (err) {
+      console.error("Paper funding error:", err);
+      setPaperError(err.message || "Funding failed.");
+    } finally {
+      setPaperBusy(false);
+    }
+  }
+
+  async function resetPaperAccount() {
+    const ok = window.confirm("Reset paper account? This clears all holdings and trades.");
+    if (!ok) return;
+    setPaperBusy(true);
+    setPaperError("");
+    setPaperNotice("");
+    try {
+      const res = await fetch(`${API_BASE}/api/paper/admin/reset`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ initial_cash: 0 }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.detail || `Reset failed: ${res.status}`);
+      }
+      setPaperPortfolio(json);
+      setPaperNotice("Paper account reset completed.");
+    } catch (err) {
+      console.error("Paper reset error:", err);
+      setPaperError(err.message || "Reset failed.");
+    } finally {
+      setPaperBusy(false);
+    }
+  }
+
+  async function fetchWatchlistStocks() {
+    try {
+      const res = await fetch(`${API_BASE}/api/stocks`);
+      if (!res.ok) throw new Error("Failed to fetch stocks");
+      const json = await res.json();
+      const list = (json.stocks || []).map((s) => ({
+        ticker: s.isin || s.ticker || s.id,
+        name: s.name || s.company || "",
+        last_price: s.last_price ?? s.lastPrice ?? null,
+      }));
+      setRemoteStocks(list);
+      setStocks(list);
+      if (list.length) {
+        if (!selected || !list.some((row) => row.ticker === selected)) {
+          setSelected(list[0].ticker);
+        }
+      } else {
+        setSelected("");
+      }
+    } catch (err) {
+      console.error("Error fetching remote stocks", err);
+      setStocks([]);
+      setRemoteStocks([]);
+    }
+  }
+
+  async function addWatchlistStock() {
+    const isin = (addStockIsin || "").trim().toUpperCase();
+    const name = (addStockName || "").trim();
+    if (!isin) {
+      setStockError("Enter ISIN to add stock.");
+      return;
+    }
+    if (!name) {
+      setStockError("Enter stock name to add stock.");
+      return;
+    }
+    setStockBusy(true);
+    setStockError("");
+    setStockNotice("");
+    try {
+      const res = await fetch(`${API_BASE}/api/stocks/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isin, name }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.detail || `Add stock failed: ${res.status}`);
+      }
+      const list = (json.stocks || []).map((s) => ({
+        ticker: s.isin || s.ticker || s.id,
+        name: s.name || s.company || "",
+        last_price: s.last_price ?? s.lastPrice ?? null,
+      }));
+      setRemoteStocks(list);
+      setStocks(list);
+      setSelected(isin);
+      setAddStockIsin("");
+      setAddStockName("");
+      setStockNotice(`Added ${name} (${isin}) to watchlist.`);
+      setTimeout(() => setStockNotice(""), 2500);
+    } catch (err) {
+      console.error("Add stock error:", err);
+      setStockError(err.message || "Unable to add stock.");
+    } finally {
+      setStockBusy(false);
+    }
+  }
+
+  async function removeWatchlistStock(ticker) {
+    const isin = (ticker || "").trim().toUpperCase();
+    if (!isin) return;
+
+    const ok = window.confirm(`Remove ${isin} from watchlist?`);
+    if (!ok) return;
+
+    setStockBusy(true);
+    setStockError("");
+    setStockNotice("");
+    try {
+      const res = await fetch(`${API_BASE}/api/stocks/${encodeURIComponent(isin)}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.detail || `Remove stock failed: ${res.status}`);
+      }
+      const list = (json.stocks || []).map((s) => ({
+        ticker: s.isin || s.ticker || s.id,
+        name: s.name || s.company || "",
+        last_price: s.last_price ?? s.lastPrice ?? null,
+      }));
+      setRemoteStocks(list);
+      setStocks(list);
+      setStockData((prev) => {
+        const next = { ...prev };
+        delete next[isin];
+        return next;
+      });
+      if (!list.some((s) => s.ticker === selected)) {
+        setSelected(list[0]?.ticker || "");
+      }
+      setStockNotice(`Removed ${isin} from watchlist.`);
+      setTimeout(() => setStockNotice(""), 2500);
+    } catch (err) {
+      console.error("Remove stock error:", err);
+      setStockError(err.message || "Unable to remove stock.");
+    } finally {
+      setStockBusy(false);
+    }
+  }
 
   // Fetch data for a ticker
   async function loadStock(ticker) {
@@ -412,8 +681,6 @@ export default function StockDashboard() {
         lastPrice: +lastPrice,
         change: history.length ? +(lastPrice - history[0].price).toFixed(2) : 0,
         changePct: history.length ? +(((lastPrice - history[0].price) / history[0].price) * 100).toFixed(2) : 0,
-        signal: predJson.signal || 'NO DATA',
-        signalColor: predJson.signalColor || '#778899',
         confidence,
         mae: Number.isFinite(maeValue) ? +maeValue.toFixed(4) : null,
         mape: Number.isFinite(mapeValue) ? +mapeValue.toFixed(4) : null,
@@ -441,40 +708,58 @@ export default function StockDashboard() {
     }
   }
 
-  // Fetch available stocks from backend on mount (and set initial selected ticker)
+  // Fetch available stocks from backend on mount (dynamic watchlist)
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/stocks`);
-        if (!res.ok) throw new Error('Failed to fetch stocks');
-        const json = await res.json();
-        // Map to { ticker, name } (server commonly returns `isin`)
-        const list = (json.stocks || []).map(s => ({
-          ticker: s.isin || s.ticker || s.id,
-          name: s.name || s.company || '',
-          last_price: s.last_price ?? s.lastPrice ?? null,
-        }));
-        if (mounted) {
-          setRemoteStocks(list);
-          setStocks(list);
-          if (list.length) setSelected(list[0].ticker);
-        }
-      } catch (err) {
-        console.error('Error fetching remote stocks', err);
-        // fallback to an empty list — UI will show nothing until backend is available
-        setStocks([]);
-      }
-    })();
-    return () => { mounted = false; };
+    fetchWatchlistStocks();
   }, []);
 
   useEffect(() => { loadStock(selected); }, [selected]);
+
+  useEffect(() => {
+    refreshPaperPortfolio(true);
+    const timer = setInterval(() => {
+      refreshPaperPortfolio(false);
+    }, 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   const data = stockData[selected];
   const meta = (remoteStocks || stocks).find(s => s.ticker === selected) || {};
   const todayPrice = meta.last_price ?? data?.lastPrice ?? null;
   const predictedVal = data?.predicted?.[0]?.price ?? null;
+
+  useEffect(() => {
+    const livePrice = Number(todayPrice ?? data?.lastPrice);
+    if (Number.isFinite(livePrice) && livePrice > 0) {
+      setTradePrice(livePrice.toFixed(2));
+    }
+  }, [selected, todayPrice, data?.lastPrice]);
+
+  const paper = paperPortfolio || {
+    cash_balance: 0,
+    total_funded: 0,
+    invested_cost: 0,
+    market_value: 0,
+    equity: 0,
+    realized_pnl: 0,
+    unrealized_pnl: 0,
+    total_pnl: 0,
+    pnl_vs_funded: 0,
+    day_pnl: 0,
+    positions: [],
+    trades: [],
+    cash_flows: [],
+  };
+  const selectedPosition = (paper.positions || []).find((p) => p.isin === selected);
+  const watchlistSource = remoteStocks || stocks;
+  const query = (stockSearch || "").trim().toLowerCase();
+  const visibleStocks = query
+    ? watchlistSource.filter((s) => {
+        const name = (s.name || "").toLowerCase();
+        const ticker = (s.ticker || "").toLowerCase();
+        return name.includes(query) || ticker.includes(query);
+      })
+    : watchlistSource;
   
   // Chart shows actual for last 10 trading days + predicted line for last 10 and next 5.
   const chartActualHistory = data?.history ? data.history.slice(-10) : [];
@@ -526,6 +811,39 @@ export default function StockDashboard() {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => setActivePage("stock")}
+              style={{
+                background: activePage === "stock" ? "#00e5a022" : "#0a1520",
+                color: activePage === "stock" ? "#00e5a0" : "#778899",
+                border: `1px solid ${activePage === "stock" ? "#00e5a055" : "#1a2a3a"}`,
+                borderRadius: 8,
+                padding: "6px 10px",
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              STOCK PAGE
+            </button>
+            <button
+              onClick={() => setActivePage("admin")}
+              style={{
+                background: activePage === "admin" ? "#00e5a022" : "#0a1520",
+                color: activePage === "admin" ? "#00e5a0" : "#778899",
+                border: `1px solid ${activePage === "admin" ? "#00e5a055" : "#1a2a3a"}`,
+                borderRadius: 8,
+                padding: "6px 10px",
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              ADMIN PAGE
+            </button>
+          </div>
+          <div style={{ fontSize: 11, color: "#8899aa" }}>Wallet: <span style={{ color: "#00e5a0", fontWeight: 700 }}>{formatINR(paper.cash_balance)}</span></div>
           <div style={{ fontSize: 11, color: "#445566" }}>DATA SOURCE</div>
           <div style={{
             background: "#1a2a3a", border: "1px solid #2a3a4a",
@@ -540,22 +858,271 @@ export default function StockDashboard() {
       {/* Sidebar */}
       <div style={{ borderRight: "1px solid #1a2a3a", padding: 16, overflowY: "auto", background: "#07101a" }}>
         <div style={{ fontSize: 10, color: "#445566", letterSpacing: 2, marginBottom: 12, paddingLeft: 4 }}>WATCHLIST</div>
+        <div style={{ marginBottom: 10 }}>
+          <input
+            type="text"
+            value={stockSearch}
+            onChange={(e) => setStockSearch(e.target.value)}
+            placeholder="Search by name or ISIN"
+            style={{
+              width: "100%",
+              background: "#060e17",
+              border: "1px solid #1a2a3a",
+              color: "#cde",
+              borderRadius: 8,
+              padding: "9px 10px",
+              fontSize: 12,
+              outline: "none",
+            }}
+          />
+        </div>
+        <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 10, padding: 10, marginBottom: 12 }}>
+          <div style={{ fontSize: 10, color: "#556677", marginBottom: 8, letterSpacing: 1 }}>ADD STOCK</div>
+          <input
+            type="text"
+            value={addStockIsin}
+            onChange={(e) => setAddStockIsin(e.target.value.toUpperCase())}
+            placeholder="ISIN (e.g. INE467B01029)"
+            style={{
+              width: "100%",
+              background: "#060e17",
+              border: "1px solid #1a2a3a",
+              color: "#cde",
+              borderRadius: 8,
+              padding: "8px 10px",
+              fontSize: 11,
+              outline: "none",
+              marginBottom: 8,
+            }}
+          />
+          <input
+            type="text"
+            value={addStockName}
+            onChange={(e) => setAddStockName(e.target.value)}
+            placeholder="Stock name"
+            style={{
+              width: "100%",
+              background: "#060e17",
+              border: "1px solid #1a2a3a",
+              color: "#cde",
+              borderRadius: 8,
+              padding: "8px 10px",
+              fontSize: 11,
+              outline: "none",
+              marginBottom: 8,
+            }}
+          />
+          <button
+            onClick={addWatchlistStock}
+            disabled={stockBusy}
+            style={{
+              width: "100%",
+              background: "#00e5a022",
+              color: "#00e5a0",
+              border: "1px solid #00e5a055",
+              borderRadius: 8,
+              padding: "8px 10px",
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: stockBusy ? "not-allowed" : "pointer",
+              opacity: stockBusy ? 0.6 : 1,
+            }}
+          >
+            {stockBusy ? "ADDING..." : "ADD TO WATCHLIST"}
+          </button>
+          {(stockError || stockNotice) && (
+            <div style={{ marginTop: 8, fontSize: 10, color: stockError ? "#fca5a5" : "#7cfccf" }}>
+              {stockError || stockNotice}
+            </div>
+          )}
+        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {(remoteStocks || stocks).map(s => (
+          {visibleStocks.map(s => (
             <StockCard key={s.ticker} ticker={s.ticker} name={s.name} meta={s} selected={selected === s.ticker}
-              data={stockData[s.ticker]} onClick={() => setSelected(s.ticker)} />
+              data={stockData[s.ticker]} onClick={() => setSelected(s.ticker)} onRemove={() => removeWatchlistStock(s.ticker)} />
           ))}
+          {!visibleStocks.length && (
+            <div style={{ color: "#556677", fontSize: 11, padding: "6px 4px" }}>No stocks found.</div>
+          )}
         </div>
       </div>
 
       {/* Main content */}
       <div style={{ overflowY: "auto", padding: "24px 28px" }}>
-        {loading && !data ? (
+        {activePage === "admin" ? (
+          paperLoading && !paperPortfolio ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60%", color: "#445566", fontSize: 14 }}>
+              Loading paper trading account…
+            </div>
+          ) : (
+            <>
+              {(paperError || paperNotice) && (
+                <div style={{
+                  marginBottom: 16,
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  border: `1px solid ${paperError ? "#f8717155" : "#00e5a055"}`,
+                  background: paperError ? "#2a1218" : "#0f2a24",
+                  color: paperError ? "#fca5a5" : "#7cfccf",
+                  fontSize: 12,
+                }}>
+                  {paperError || paperNotice}
+                </div>
+              )}
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 20 }}>
+                {[
+                  { label: "Cash Balance", value: formatINR(paper.cash_balance), color: "#00e5a0" },
+                  { label: "Equity", value: formatINR(paper.equity), color: "#cde" },
+                  { label: "Market Value", value: formatINR(paper.market_value), color: "#4a9eff" },
+                  { label: "Day P/L", value: formatINR(paper.day_pnl), color: (paper.day_pnl ?? 0) >= 0 ? "#4ade80" : "#f87171" },
+                  { label: "Total P/L", value: formatINR(paper.total_pnl), color: (paper.total_pnl ?? 0) >= 0 ? "#4ade80" : "#f87171" },
+                ].map((item) => (
+                  <div key={item.label} style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 10, padding: "12px 14px" }}>
+                    <div style={{ fontSize: 10, color: "#445566", letterSpacing: 1, marginBottom: 6 }}>{item.label}</div>
+                    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700, color: item.color }}>{item.value}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: 18, marginBottom: 20 }}>
+                <div style={{ fontSize: 11, color: "#667788", letterSpacing: 1, marginBottom: 12 }}>ADMIN FUNDING</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={fundAmount}
+                    onChange={(e) => setFundAmount(e.target.value)}
+                    placeholder="Amount in INR"
+                    style={{
+                      background: "#060e17",
+                      border: "1px solid #1a2a3a",
+                      color: "#cde",
+                      borderRadius: 8,
+                      padding: "10px 12px",
+                      width: 220,
+                      outline: "none",
+                    }}
+                  />
+                  <button
+                    onClick={addPaperFunds}
+                    disabled={paperBusy}
+                    style={{
+                      background: "#00e5a022",
+                      color: "#00e5a0",
+                      border: "1px solid #00e5a055",
+                      borderRadius: 8,
+                      padding: "9px 14px",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: paperBusy ? "not-allowed" : "pointer",
+                      opacity: paperBusy ? 0.6 : 1,
+                    }}
+                  >
+                    Add Funds
+                  </button>
+                  <button
+                    onClick={resetPaperAccount}
+                    disabled={paperBusy}
+                    style={{
+                      background: "#2a1218",
+                      color: "#f87171",
+                      border: "1px solid #f8717155",
+                      borderRadius: 8,
+                      padding: "9px 14px",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: paperBusy ? "not-allowed" : "pointer",
+                      opacity: paperBusy ? 0.6 : 1,
+                    }}
+                  >
+                    Reset Account
+                  </button>
+                </div>
+                <div style={{ marginTop: 10, fontSize: 11, color: "#556677" }}>
+                  Total funded: {formatINR(paper.total_funded)} · P/L vs funded: <span style={{ color: (paper.pnl_vs_funded ?? 0) >= 0 ? "#4ade80" : "#f87171" }}>{formatINR(paper.pnl_vs_funded)}</span>
+                </div>
+              </div>
+
+              <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: 18, marginBottom: 20 }}>
+                <div style={{ fontSize: 11, color: "#667788", letterSpacing: 1, marginBottom: 10 }}>OPEN POSITIONS</div>
+                {(paper.positions || []).length ? (
+                  <div style={{ border: "1px solid #1a2a3a", borderRadius: 8, overflow: "hidden" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr 1fr 1fr", background: "#081321", color: "#667788", fontSize: 10, letterSpacing: 1, textTransform: "uppercase" }}>
+                      <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a" }}>Stock</div>
+                      <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a" }}>Qty</div>
+                      <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a" }}>Avg / Current</div>
+                      <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a" }}>Unrealized</div>
+                      <div style={{ padding: "10px 12px" }}>Day P/L</div>
+                    </div>
+                    {(paper.positions || []).map((pos) => (
+                      <div key={pos.isin} style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr 1fr 1fr", borderTop: "1px solid #1a2a3a", fontSize: 12 }}>
+                        <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a", color: "#cde" }}>{pos.name}</div>
+                        <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a", color: "#9bb0c4" }}>{pos.quantity}</div>
+                        <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a", color: "#9bb0c4" }}>{formatINR(pos.avg_price)} / {formatINR(pos.current_price)}</div>
+                        <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a", color: (pos.unrealized_pnl ?? 0) >= 0 ? "#4ade80" : "#f87171" }}>{formatINR(pos.unrealized_pnl)}</div>
+                        <div style={{ padding: "10px 12px", color: (pos.day_pnl ?? 0) >= 0 ? "#4ade80" : "#f87171" }}>{formatINR(pos.day_pnl)}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: "#556677" }}>No open positions yet.</div>
+                )}
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: 18 }}>
+                  <div style={{ fontSize: 11, color: "#667788", letterSpacing: 1, marginBottom: 10 }}>RECENT TRADES</div>
+                  {(paper.trades || []).length ? (
+                    (paper.trades || []).slice(0, 8).map((trade) => (
+                      <div key={trade.id} style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid #1a2a3a", padding: "9px 0", fontSize: 12 }}>
+                        <span style={{ color: "#9bb0c4" }}>{trade.isin}</span>
+                        <span style={{ color: trade.side === "buy" ? "#4ade80" : "#f87171", fontWeight: 700 }}>{trade.side.toUpperCase()}</span>
+                        <span style={{ color: "#cde" }}>{formatINR(trade.gross_value)}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ fontSize: 12, color: "#556677" }}>No trades yet.</div>
+                  )}
+                </div>
+
+                <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: 18 }}>
+                  <div style={{ fontSize: 11, color: "#667788", letterSpacing: 1, marginBottom: 10 }}>WALLET LEDGER</div>
+                  {(paper.cash_flows || []).length ? (
+                    (paper.cash_flows || []).slice(0, 8).map((flow) => (
+                      <div key={flow.id} style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid #1a2a3a", padding: "9px 0", fontSize: 12 }}>
+                        <span style={{ color: "#9bb0c4" }}>{flow.kind}</span>
+                        <span style={{ color: (flow.amount ?? 0) >= 0 ? "#4ade80" : "#f87171" }}>{formatINR(flow.amount)}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ fontSize: 12, color: "#556677" }}>No ledger entries yet.</div>
+                  )}
+                </div>
+              </div>
+            </>
+          )
+        ) : loading && !data ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60%", color: "#445566", fontSize: 14 }}>
             Loading predictions…
           </div>
         ) : data ? (
           <>
+            {(paperError || paperNotice) && (
+              <div style={{
+                marginBottom: 16,
+                borderRadius: 10,
+                padding: "10px 12px",
+                border: `1px solid ${paperError ? "#f8717155" : "#00e5a055"}`,
+                background: paperError ? "#2a1218" : "#0f2a24",
+                color: paperError ? "#fca5a5" : "#7cfccf",
+                fontSize: 12,
+              }}>
+                {paperError || paperNotice}
+              </div>
+            )}
+
             {/* Stock header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
               <div>
@@ -586,10 +1153,110 @@ export default function StockDashboard() {
               </div>
               <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                 <ConfidenceRing value={data.confidence} />
-                <div>
-                  <SignalBadge signal={data.signal} color={data.signalColor} />
-                  <div style={{ marginTop: 8, fontSize: 11, color: "#445566", textAlign: "right" }}>AI SIGNAL</div>
-                </div>
+              </div>
+            </div>
+
+            {/* Paper Trade */}
+            <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: 18, marginBottom: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: "#667788", letterSpacing: 1 }}>PAPER TRADE · AMOUNT BASED</div>
+                <div style={{ fontSize: 12, color: "#00e5a0", fontWeight: 700 }}>Cash: {formatINR(paper.cash_balance)}</div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={tradeAmount}
+                  onChange={(e) => setTradeAmount(e.target.value)}
+                  placeholder="Trade amount in INR"
+                  style={{
+                    background: "#060e17",
+                    border: "1px solid #1a2a3a",
+                    color: "#cde",
+                    borderRadius: 8,
+                    padding: "10px 12px",
+                    width: 220,
+                    outline: "none",
+                  }}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={tradePrice}
+                  onChange={(e) => setTradePrice(e.target.value)}
+                  placeholder="Execution price"
+                  style={{
+                    background: "#060e17",
+                    border: "1px solid #1a2a3a",
+                    color: "#cde",
+                    borderRadius: 8,
+                    padding: "10px 12px",
+                    width: 170,
+                    outline: "none",
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    const live = Number(todayPrice ?? data?.lastPrice);
+                    if (Number.isFinite(live) && live > 0) setTradePrice(live.toFixed(2));
+                  }}
+                  style={{
+                    background: "#081321",
+                    color: "#9bb0c4",
+                    border: "1px solid #1a2a3a",
+                    borderRadius: 8,
+                    padding: "9px 12px",
+                    fontSize: 11,
+                    cursor: "pointer",
+                  }}
+                >
+                  Use Today
+                </button>
+                <button
+                  onClick={() => placePaperOrder("buy")}
+                  disabled={paperBusy}
+                  style={{
+                    background: "#0f2a24",
+                    color: "#4ade80",
+                    border: "1px solid #4ade8055",
+                    borderRadius: 8,
+                    padding: "9px 14px",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: paperBusy ? "not-allowed" : "pointer",
+                    opacity: paperBusy ? 0.6 : 1,
+                  }}
+                >
+                  BUY
+                </button>
+                <button
+                  onClick={() => placePaperOrder("sell")}
+                  disabled={paperBusy}
+                  style={{
+                    background: "#2a1218",
+                    color: "#f87171",
+                    border: "1px solid #f8717155",
+                    borderRadius: 8,
+                    padding: "9px 14px",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: paperBusy ? "not-allowed" : "pointer",
+                    opacity: paperBusy ? 0.6 : 1,
+                  }}
+                >
+                  SELL
+                </button>
+              </div>
+              <div style={{ fontSize: 11, color: "#667788", marginBottom: 8 }}>
+                Default execution price is today price: <span style={{ color: "#9fe7ff" }}>{formatINR(todayPrice ?? data?.lastPrice)}</span>. You can edit this price before Buy/Sell.
+              </div>
+              <div style={{ fontSize: 11, color: "#667788" }}>
+                Current holding: {selectedPosition ? `${selectedPosition.quantity} qty` : "0 qty"} ·
+                Position value: {formatINR(selectedPosition?.market_value ?? 0)} ·
+                Unrealized P/L: <span style={{ color: (selectedPosition?.unrealized_pnl ?? 0) >= 0 ? "#4ade80" : "#f87171" }}>{formatINR(selectedPosition?.unrealized_pnl ?? 0)}</span> ·
+                Day P/L (today vs buy avg): <span style={{ color: (selectedPosition?.day_pnl ?? 0) >= 0 ? "#4ade80" : "#f87171" }}>{formatINR(selectedPosition?.day_pnl ?? 0)}</span>
               </div>
             </div>
 
