@@ -1,13 +1,15 @@
-import pytest
 from fastapi.testclient import TestClient
+
 from app.web import app
 
 client = TestClient(app)
+
 
 def test_root_endpoint():
     response = client.get("/")
     assert response.status_code == 200
     assert "message" in response.json()
+
 
 def test_prediction_endpoint_requires_token():
     # Prepare a sample request payload
@@ -16,7 +18,7 @@ def test_prediction_endpoint_requires_token():
         "start_date": "2025-08-05",
         "end_date": "2025-08-05",
         "interval": "day",
-        "count": 1
+        "count": 1,
     }
 
     # Call the POST endpoint

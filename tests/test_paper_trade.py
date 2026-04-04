@@ -1,11 +1,15 @@
-import pytest
 import sqlite3
 import threading
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
+
+import pytest
+
 from app.paper_trade import PaperTradeStore
+
 
 class TestPaperTradeStore(PaperTradeStore):
     """Use single in-memory connection for testing."""
+
     def __init__(self):
         self.db_path = ":memory:"
         self._lock = threading.Lock()  # initialize properly
@@ -17,11 +21,15 @@ class TestPaperTradeStore(PaperTradeStore):
         class DummyConn:
             def __init__(self, conn):
                 self.conn = conn
+
             def __enter__(self):
                 return self.conn
+
             def __exit__(self, exc_type, exc_val, exc_tb):
                 pass
+
         return DummyConn(self._conn)
+
 
 @pytest.fixture
 def mock_paper_trade():
@@ -31,7 +39,12 @@ def mock_paper_trade():
 def test_get_total_funded_returns_float(mock_paper_trade):
     # Patch _connect to avoid hitting real DB
     with patch.object(mock_paper_trade, "_connect") as mock_conn:
-        mock_conn.return_value.__enter__.return_value.execute.return_value.fetchone.return_value = {"total": 1000}
+        # Break the long chain for readability and line length compliance
+        conn_enter = mock_conn.return_value.__enter__.return_value
+        execute_mock = conn_enter.execute.return_value
+        fetchone_mock = execute_mock.fetchone
+        fetchone_mock.return_value = {"total": 1000}
+
         total = mock_paper_trade.get_total_funded()
         assert isinstance(total, float)
         assert total == 1000.0
