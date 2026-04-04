@@ -85,6 +85,28 @@ npm run dev
 
 ## Open UI
 [http://localhost:3000/](http://localhost:3000/)
+
+## Code Quality Tools
+### We use Black for formatting, Ruff for linting, and Pytest for testing.
+1.  Format code
+
+```bash
+black .
+```
+
+2. Lint code
+```bash
+ruff check .
+```
+
+3. Run tests
+```bash
+pytest
+```
+Test files are located in the tests/ folder.
+
 ## Notes
 
 - If you don't have an Upstox token, prediction endpoints will return a 503 and the UI will show all the values as zero by default
+- The repository now includes Python tooling and a tests directory for maintainable, high-quality code.
+- Follow the style guides to keep the project consistent and clean.
