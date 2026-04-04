@@ -99,11 +99,26 @@ black .
 ruff check .
 ```
 
-3. Run tests
+3. Running Unit Tests
+
+This project uses pytest for unit testing. Tests cover core prediction models, paper trading logic, and web endpoints.
+
+- Run All Tests
+
 ```bash
-pytest
+pytest tests/ -v
 ```
-Test files are located in the tests/ folder.
+Test files are located in the tests/ folder
+
+- Run Specific Test File
+```bash
+pytest tests/test_core.py -v
+```
+
+- Run Specific Test Function
+```bash
+pytest tests/test_core.py::test_feature_engineering -v
+```
 
 ## Notes
 
