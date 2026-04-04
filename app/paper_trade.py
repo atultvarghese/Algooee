@@ -38,27 +38,22 @@ class PaperTradeStore:
 
     def _init_db(self) -> None:
         with self._connect() as conn:
-            conn.execute(
-                """
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS wallet (
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     cash_balance REAL NOT NULL DEFAULT 0,
                     updated_at TEXT NOT NULL
                 )
-                """
-            )
-            conn.execute(
-                """
+                """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS holdings (
                     isin TEXT PRIMARY KEY,
                     quantity REAL NOT NULL,
                     avg_price REAL NOT NULL,
                     updated_at TEXT NOT NULL
                 )
-                """
-            )
-            conn.execute(
-                """
+                """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS trades (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     isin TEXT NOT NULL,
@@ -70,10 +65,8 @@ class PaperTradeStore:
                     realized_pnl REAL NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL
                 )
-                """
-            )
-            conn.execute(
-                """
+                """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS wallet_ledger (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     kind TEXT NOT NULL,
@@ -81,23 +74,18 @@ class PaperTradeStore:
                     note TEXT,
                     created_at TEXT NOT NULL
                 )
-                """
-            )
-            conn.execute(
-                """
+                """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS watchlist_stocks (
                     isin TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 )
-                """
-            )
-            conn.execute(
-                """
+                """)
+            conn.execute("""
                 INSERT OR IGNORE INTO wallet (id, cash_balance, updated_at)
                 VALUES (1, 0, datetime('now'))
-                """
-            )
+                """)
             for row in DEFAULT_WATCHLIST_STOCKS:
                 conn.execute(
                     """
@@ -116,7 +104,8 @@ class PaperTradeStore:
     def get_total_funded(self) -> float:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT COALESCE(SUM(amount), 0) AS total FROM wallet_ledger WHERE kind = 'FUND'"
+                "SELECT COALESCE(SUM(amount), 0) AS total FROM wallet_ledger"
+                "WHERE kind = 'FUND'"
             ).fetchone()
             return float(row["total"] if row else 0.0)
 
@@ -131,7 +120,8 @@ class PaperTradeStore:
                 new_balance = current + float(amount)
 
                 conn.execute(
-                    "UPDATE wallet SET cash_balance = ?, updated_at = datetime('now') WHERE id = 1",
+                    "UPDATE wallet SET cash_balance = ?, updated_at = datetime('now') "
+                    "WHERE id = 1",
                     (new_balance,),
                 )
                 conn.execute(
@@ -161,8 +151,8 @@ class PaperTradeStore:
         with self._connect() as conn:
             rows = conn.execute(
                 """
-                SELECT id, isin, side, amount, quantity, price, gross_value, realized_pnl, created_at
-                FROM trades
+                SELECT id, isin, side, amount, quantity, price, gross_value, realized_pnl,
+                created_at FROM trades
                 ORDER BY id DESC
                 LIMIT ?
                 """,
@@ -172,13 +162,11 @@ class PaperTradeStore:
 
     def list_holdings(self) -> List[Dict]:
         with self._connect() as conn:
-            rows = conn.execute(
-                """
+            rows = conn.execute("""
                 SELECT isin, quantity, avg_price, updated_at
                 FROM holdings
                 ORDER BY isin ASC
-                """
-            ).fetchall()
+                """).fetchall()
             return [dict(row) for row in rows]
 
     def list_stocks(self, query: Optional[str] = None, limit: int = 200) -> List[Dict]:
@@ -247,7 +235,9 @@ class PaperTradeStore:
             ).fetchone()
             return float(row["total"] if row else 0.0)
 
-    def place_order(self, isin: str, side: str, amount: float, price: float) -> PaperOrderResult:
+    def place_order(
+        self, isin: str, side: str, amount: float, price: float
+    ) -> PaperOrderResult:
         side_normalized = (side or "").strip().lower()
         if side_normalized not in {"buy", "sell"}:
             raise ValueError("Side must be 'buy' or 'sell'.")
@@ -258,7 +248,9 @@ class PaperTradeStore:
 
         with self._lock:
             with self._connect() as conn:
-                wallet_row = conn.execute("SELECT cash_balance FROM wallet WHERE id = 1").fetchone()
+                wallet_row = conn.execute(
+                    "SELECT cash_balance FROM wallet WHERE id = 1"
+                ).fetchone()
                 cash_balance = float(wallet_row["cash_balance"] if wallet_row else 0.0)
                 holding_row = conn.execute(
                     "SELECT quantity, avg_price FROM holdings WHERE isin = ?",
@@ -276,7 +268,11 @@ class PaperTradeStore:
                         raise ValueError("Insufficient cash balance for this buy order.")
                     new_cash = cash_balance - gross_value
                     new_qty = current_qty + quantity
-                    new_avg = ((current_qty * current_avg) + (quantity * price)) / new_qty if new_qty > 0 else 0.0
+                    new_avg = (
+                        ((current_qty * current_avg) + (quantity * price)) / new_qty
+                        if new_qty > 0
+                        else 0.0
+                    )
                 else:
                     if current_qty <= 0:
                         raise ValueError("No holdings available to sell.")
@@ -289,7 +285,8 @@ class PaperTradeStore:
                     realized_pnl = (price - current_avg) * quantity
 
                 conn.execute(
-                    "UPDATE wallet SET cash_balance = ?, updated_at = datetime('now') WHERE id = 1",
+                    "UPDATE wallet SET cash_balance = ?, updated_at = datetime('now')"
+                    " WHERE id = 1",
                     (new_cash,),
                 )
 
@@ -316,10 +313,18 @@ class PaperTradeStore:
                 conn.execute(
                     """
                     INSERT INTO trades (
-                        isin, side, amount, quantity, price, gross_value, realized_pnl, created_at
+                    isin, side, amount, quantity, price, gross_value, realized_pnl, created_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
                     """,
-                    (isin, side_normalized, float(amount), quantity, float(price), gross_value, realized_pnl),
+                    (
+                        isin,
+                        side_normalized,
+                        float(amount),
+                        quantity,
+                        float(price),
+                        gross_value,
+                        realized_pnl,
+                    ),
                 )
 
                 ledger_amount = -gross_value if side_normalized == "buy" else gross_value
@@ -353,7 +358,8 @@ class PaperTradeStore:
                 conn.execute("DELETE FROM trades")
                 conn.execute("DELETE FROM wallet_ledger")
                 conn.execute(
-                    "UPDATE wallet SET cash_balance = ?, updated_at = datetime('now') WHERE id = 1",
+                    "UPDATE wallet SET cash_balance = ?, updated_at = datetime('now')"
+                    " WHERE id = 1",
                     (cash,),
                 )
                 if cash > 0:

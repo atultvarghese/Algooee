@@ -1,11 +1,13 @@
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import List, Optional
+
+import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional
-import pandas as pd
-import time
+
 from app.app import UpstoxClient
 from app.paper_trade import PaperTradeStore
 from core.prediction import Prediction
@@ -13,15 +15,13 @@ from core.prediction import Prediction
 app = FastAPI(
     title="Algooee API",
     description="Stock prediction and analysis API",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 # Allow the frontend dev servers to access this API (Vite default ports)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000"
-    ],
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -37,6 +37,7 @@ class StockPredictionRequest(BaseModel):
     count: int = 1
     forecast_days: int = 5
     backtest_days: int = 10
+
 
 class HistoricalCandleResponse(BaseModel):
     isin: str
@@ -64,10 +65,11 @@ class StockAddRequest(BaseModel):
     isin: str
     name: str
 
+
 # Initialize client
 try:
     client = UpstoxClient()
-except ValueError as e:
+except ValueError:
     client = None
 
 PAPER_STORE = PaperTradeStore(str(Path(__file__).resolve().parents[1] / "paper_trade.db"))
@@ -120,7 +122,9 @@ def _build_paper_portfolio_snapshot():
     total_funded = PAPER_STORE.get_total_funded()
     holdings = PAPER_STORE.list_holdings()
     realized_pnl = PAPER_STORE.get_realized_pnl()
-    stock_name_by_isin = {row["isin"]: row["name"] for row in PAPER_STORE.list_stocks(limit=2000)}
+    stock_name_by_isin = {
+        row["isin"]: row["name"] for row in PAPER_STORE.list_stocks(limit=2000)
+    }
 
     positions = []
     invested_cost = 0.0
@@ -187,80 +191,80 @@ def _build_paper_portfolio_snapshot():
         "cash_flows": PAPER_STORE.list_ledger(limit=100),
     }
 
+
 # API Routes
 @app.get("/", tags=["UI"])
 async def root():
     """Root endpoint – UI removed, API only."""
-    return {"message": "This server provides the Algooee API. Frontend moved to a separate React/Vite application."}
+    return {
+        "message": "This server provides the Algooee API. Frontend moved to a"
+        " separate React/Vite application."
+    }
+
 
 @app.get("/health", tags=["Health"])
 async def health():
     """Health status check"""
-    return {
-        "status": "healthy",
-        "api_configured": client is not None
-    }
+    return {"status": "healthy", "api_configured": client is not None}
 
-@app.post("/api/historical-candles", tags=["Stock Data"], response_model=HistoricalCandleResponse)
+
+@app.post(
+    "/api/historical-candles",
+    tags=["Stock Data"],
+    response_model=HistoricalCandleResponse,
+)
 async def get_historical_candles(request: StockPredictionRequest):
     """
     Fetch historical candle data for a stock.
-    
+
     Args:
         isin: Instrument ISIN code (e.g., INE002A01018 for Reliance)
         start_date: Start date (YYYY-MM-DD)
         end_date: End date (YYYY-MM-DD)
         interval: Candle interval (day, month, etc.)
         count: Number of intervals per candle
-    
+
     Returns:
         Historical candle data with timestamp, open, high, low, close, volume, open interest
     """
     if not client:
         raise HTTPException(
             status_code=503,
-            detail="Upstox API client not configured. Set UPSTOX_API_TOKEN in .env"
+            detail="Upstox API client not configured. Set UPSTOX_API_TOKEN in .env",
         )
-    
+
     try:
         candles = client.get_historical_candles(
             isin=request.isin,
             start_date=request.start_date,
             end_date=request.end_date,
             interval=request.interval,
-            count=request.count
+            count=request.count,
         )
         return HistoricalCandleResponse(
-            isin=request.isin,
-            data=candles,
-            timestamp=request.end_date
+            isin=request.isin, data=candles, timestamp=request.end_date
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Error fetching candles: {str(e)}"
-        )
+        raise HTTPException(status_code=400, detail=f"Error fetching candles: {str(e)}")
+
 
 @app.post("/api/predict", tags=["Predictions"])
 async def predict_stock(request: StockPredictionRequest):
     """
     Predict the next day's high price for a stock.
-    
+
     Args:
         isin: Instrument ISIN code
         start_date: Start date for historical data
         end_date: End date for historical data
         interval: Data interval (default: day)
         count: Number of intervals (default: 1)
-    
+
     Returns:
         Predicted high price and confidence level
     """
     if not client:
-        raise HTTPException(
-            status_code=503,
-            detail="Upstox API client not configured"
-        )
+        raise HTTPException(status_code=503, detail="Upstox API client not configured")
     cache_key = (
         f"{request.isin}|{request.start_date}|{request.end_date}|{request.interval}|"
         f"{request.count}|{request.forecast_days}|{request.backtest_days}"
@@ -269,7 +273,7 @@ async def predict_stock(request: StockPredictionRequest):
     cached = PREDICTION_CACHE.get(cache_key)
     if cached and (now_ts - cached["ts"] <= PREDICTION_CACHE_TTL_SECONDS):
         return cached["value"]
-    
+
     try:
         # Fetch historical data
         candles = client.get_historical_candles(
@@ -277,19 +281,27 @@ async def predict_stock(request: StockPredictionRequest):
             start_date=request.start_date,
             end_date=request.end_date,
             interval=request.interval,
-            count=request.count
+            count=request.count,
         )
-        
+
         if not candles:
             raise HTTPException(
                 status_code=404,
-                detail="No data found for the given ISIN and date range"
+                detail="No data found for the given ISIN and date range",
             )
-        
+
         # Prepare data
-        headers = ["Timestamp", "Open", "High", "Low", "Close", "Volume", "Open Interest"]
+        headers = [
+            "Timestamp",
+            "Open",
+            "High",
+            "Low",
+            "Close",
+            "Volume",
+            "Open Interest",
+        ]
         df = pd.DataFrame(candles, columns=headers)
-        
+
         # Train model and predict
         predictor = Prediction(df)
         predictor.feature_engineering()
@@ -322,10 +334,8 @@ async def predict_stock(request: StockPredictionRequest):
         PREDICTION_CACHE[cache_key] = {"ts": now_ts, "value": result}
         return result
     except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Prediction error: {str(e)}"
-        )
+        raise HTTPException(status_code=400, detail=f"Prediction error: {str(e)}")
+
 
 @app.get("/api/stocks", tags=["Reference"])
 async def get_stock_list(q: Optional[str] = None):
