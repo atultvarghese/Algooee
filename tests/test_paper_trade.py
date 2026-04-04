@@ -7,12 +7,12 @@ import pytest
 from app.paper_trade import PaperTradeStore
 
 
-class TestPaperTradeStore(PaperTradeStore):
+class PaperTradeStoreTestHelper(PaperTradeStore):
     """Use single in-memory connection for testing."""
 
     def __init__(self):
         self.db_path = ":memory:"
-        self._lock = threading.Lock()  # initialize properly
+        self._lock = threading.Lock()
         self._conn = sqlite3.connect(self.db_path)
         self._conn.row_factory = sqlite3.Row
         self._init_db()
@@ -33,13 +33,12 @@ class TestPaperTradeStore(PaperTradeStore):
 
 @pytest.fixture
 def mock_paper_trade():
-    return TestPaperTradeStore()
+    return PaperTradeStoreTestHelper()
 
 
 def test_get_total_funded_returns_float(mock_paper_trade):
     # Patch _connect to avoid hitting real DB
     with patch.object(mock_paper_trade, "_connect") as mock_conn:
-        # Break the long chain for readability and line length compliance
         conn_enter = mock_conn.return_value.__enter__.return_value
         execute_mock = conn_enter.execute.return_value
         fetchone_mock = execute_mock.fetchone
