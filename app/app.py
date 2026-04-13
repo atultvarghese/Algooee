@@ -1,6 +1,8 @@
 import os
+
 import requests
 from dotenv import load_dotenv
+
 
 class UpstoxClient:
     """
@@ -17,9 +19,9 @@ class UpstoxClient:
             raise ValueError("Missing UPSTOX_API_TOKEN in .env file")
 
         self.headers = {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': f'Bearer {self.api_token}'
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Authorization": f"Bearer {self.api_token}",
         }
 
     def _make_request(self, endpoint, params=None):
@@ -30,11 +32,11 @@ class UpstoxClient:
         if response.status_code == 200:
             return response.json()
         else:
-            raise Exception(
-                f"[Upstox API Error] {response.status_code}: {response.text}"
-            )
+            raise Exception(f"[Upstox API Error] {response.status_code}: {response.text}")
 
-    def get_historical_candles(self, isin, start_date, end_date, interval="month", count=1, exchange="NSE_EQ"):
+    def get_historical_candles(
+        self, isin, start_date, end_date, interval="month", count=1, exchange="NSE_EQ"
+    ):
         """
         Fetch historical candle data for a given ISIN.
         :param isin: Instrument ISIN code
@@ -46,8 +48,9 @@ class UpstoxClient:
         :return: List of candles (if successful)
         """
         encoded_symbol = f"{exchange}%7C{isin}"
-        endpoint = f"/historical-candle/{encoded_symbol}/{interval}s/{count}/{end_date}/{start_date}"
+        endpoint = (
+            f"/historical-candle/{encoded_symbol}/{interval}s/{count}/{end_date}/{start_date}"
+        )
 
         data = self._make_request(endpoint)
         return data.get("data", {}).get("candles", [])
-
