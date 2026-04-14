@@ -105,7 +105,7 @@ class PaperTradeStore:
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT COALESCE(SUM(amount), 0) AS total FROM wallet_ledger"
-                "WHERE kind = 'FUND'"
+                " WHERE kind = 'FUND'"
             ).fetchone()
             return float(row["total"] if row else 0.0)
 
