@@ -10,6 +10,7 @@ __pycache__/
 .Python
 build/
 dist/
+node_modules/
 *.egg-info/
 *.egg
 *.manifest
@@ -78,7 +79,6 @@ site/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
-paper_trade.db
 instance/
 .webassets-cache
 .scrapy
