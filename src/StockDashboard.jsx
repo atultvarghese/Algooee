@@ -939,7 +939,7 @@ export default function StockDashboard() {
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {visibleStocks.map(s => (
             <StockCard key={s.ticker} ticker={s.ticker} name={s.name} meta={s} selected={selected === s.ticker}
-              data={stockData[s.ticker]} onClick={() => setSelected(s.ticker)} onRemove={() => removeWatchlistStock(s.ticker)} />
+              data={stockData[s.ticker]} onClick={() => { setSelected(s.ticker); setActivePage("stock"); }} onRemove={() => removeWatchlistStock(s.ticker)} />
           ))}
           {!visibleStocks.length && (
             <div style={{ color: "#556677", fontSize: 11, padding: "6px 4px" }}>No stocks found.</div>
@@ -970,12 +970,13 @@ export default function StockDashboard() {
                 </div>
               )}
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 20 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
                 {[
                   { label: "Cash Balance", value: formatINR(paper.cash_balance), color: "#00e5a0" },
-                  { label: "Equity", value: formatINR(paper.equity), color: "#cde" },
+                  // { label: "Equity", value: formatINR(paper.equity), color: "#cde" },
+                  { label: "Total Invested", value: formatINR(paper.invested_cost), color: "#9fe7ff" },
                   { label: "Market Value", value: formatINR(paper.market_value), color: "#4a9eff" },
-                  { label: "Day P/L", value: formatINR(paper.day_pnl), color: (paper.day_pnl ?? 0) >= 0 ? "#4ade80" : "#f87171" },
+                  // { label: "Day P/L", value: formatINR(paper.day_pnl), color: (paper.day_pnl ?? 0) >= 0 ? "#4ade80" : "#f87171" },
                   { label: "Total P/L", value: formatINR(paper.total_pnl), color: (paper.total_pnl ?? 0) >= 0 ? "#4ade80" : "#f87171" },
                 ].map((item) => (
                   <div key={item.label} style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 10, padding: "12px 14px" }}>
