@@ -1,3 +1,4 @@
+import React from "react";
 import { formatINR } from "../utils/formatters";
 
 export default function StockCard({ ticker, selected, data, onClick, onRemove, name, meta }) {
@@ -9,7 +10,7 @@ export default function StockCard({ ticker, selected, data, onClick, onRemove, n
     <div onClick={onClick} style={{
       background: selected ? "linear-gradient(135deg, #0d2236 0%, #0f2940 100%)" : "#0a1520",
       border: `1px solid ${selected ? "#00e5a060" : "#1a2a3a"}`,
-      borderRadius: 10, padding: "14px 16px", cursor: "pointer", marginBottom: 10,
+      borderRadius: 10, padding: "14px 16px", cursor: "pointer",
       transition: "all 0.2s", boxShadow: selected ? "0 0 20px #00e5a015" : "none"
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -19,8 +20,16 @@ export default function StockCard({ ticker, selected, data, onClick, onRemove, n
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {typeof onRemove === "function" && (
-            <button onClick={(e) => { e.stopPropagation(); onRemove(); }}
-              style={{ background: "#2a1218", color: "#f87171", border: "1px solid #f8717155", borderRadius: 6, padding: "2px 6px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>X</button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
+              title="Remove from watchlist"
+              style={{ background: "#2a1218", color: "#f87171", border: "1px solid #f8717155", borderRadius: 6, padding: "2px 6px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}
+            >
+              X
+            </button>
           )}
         </div>
       </div>

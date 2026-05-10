@@ -1,4 +1,25 @@
-import { toNumberOrNaN } from "./formatters";
+export function buildEmptyStockData(ticker) {
+  return {
+    ticker,
+    name: ticker,
+    history: [],
+    backtest: [],
+    predicted: [],
+    lastPrice: 0,
+    change: 0,
+    changePct: 0,
+    confidence: 0,
+    mae: null,
+    mape: null,
+    p10: null,
+    p90: null,
+    errorRatioPct: null,
+    riskScore: 0,
+    trend: "Neutral",
+    trendStrength: 0,
+    indicators: { rsi: 0, macd: 0, ema20: 0, ema50: 0, volume: 0 },
+  };
+}
 
 export function normalizeTimestamp(value) {
   const numeric = Number(value);
@@ -9,6 +30,16 @@ export function normalizeTimestamp(value) {
   const date = new Date(normalized);
   const ts = date.getTime();
   return Number.isNaN(ts) ? null : ts;
+}
+
+export function toNumberOrNaN(value) {
+  if (typeof value === "string") {
+    const cleaned = value.replace(/[^0-9.+-]/g, "");
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : NaN;
+  }
+  const n = Number(value);
+  return Number.isFinite(n) ? n : NaN;
 }
 
 export function firstFinite(values) {
@@ -30,10 +61,7 @@ export function extractCandlePoint(row) {
     const ts = normalizeTimestamp(row[0]);
     const numericRow = row.map(toNumberOrNaN);
     const price = firstFinite([
-      numericRow[4], // close
-      numericRow[2], // high
-      numericRow[1], // open
-      numericRow[3], // low
+      numericRow[4], numericRow[2], numericRow[1], numericRow[3],
       ...numericRow.filter(Number.isFinite),
     ]);
     return { ts, price };
@@ -51,15 +79,6 @@ export function extractCandlePoint(row) {
     ]);
     return { ts, price };
   }
-  return { ts: null, price: NaN };
-}
 
-export function buildEmptyStockData(ticker) {
-  return {
-    ticker, name: ticker, history: [], backtest: [], predicted: [],
-    lastPrice: 0, change: 0, changePct: 0, confidence: 0,
-    mae: null, mape: null, p10: null, p90: null, errorRatioPct: null,
-    riskScore: 0, trend: "Neutral", trendStrength: 0,
-    indicators: { rsi: 0, macd: 0, ema20: 0, ema50: 0, volume: 0 },
-  };
+  return { ts: null, price: NaN };
 }
