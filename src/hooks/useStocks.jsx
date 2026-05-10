@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { normalizeTimestamp, formatDateLabel, getCandleRows, extractCandlePoint } from "../utils/dataHelpers";
+import { formatDateLabel } from "../utils/formatters";
+import { normalizeTimestamp, getCandleRows, extractCandlePoint } from "../utils/dataHelpers";
 
 const API_BASE = "http://localhost:8000";
 
