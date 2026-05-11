@@ -1,728 +1,38 @@
-import { useState, useEffect } from "react";
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, ReferenceLine
-} from "recharts";
+import React, { useState, useEffect } from "react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
-// ── Config ──────────────────────────────────────────────────────────────────
-const API_BASE = "http://localhost:8000"; // ← change to your backend URL
+// Hooks & Utils
+import useStocks from "./hooks/useStocks";
+import usePaperTrade from "./hooks/usePaperTrade";
+import { formatINR, formatPercent, formatDateLabel } from "./utils/formatters";
 
-// `stocks` comes from backend. If data cannot be fetched, we show strict zero/default values.
-function buildEmptyStockData(ticker) {
-  return {
-    ticker,
-    name: ticker,
-    history: [],
-    backtest: [],
-    predicted: [],
-    lastPrice: 0,
-    change: 0,
-    changePct: 0,
-    confidence: 0,
-    mae: null,
-    mape: null,
-    p10: null,
-    p90: null,
-    errorRatioPct: null,
-    riskScore: 0,
-    trend: "Neutral",
-    trendStrength: 0,
-    indicators: { rsi: 0, macd: 0, ema20: 0, ema50: 0, volume: 0 },
-  };
-}
+// Components (UPDATED IMPORTS)
+import { RiskMeter, ConfidenceRing, CustomTooltip } from "./components/CommonWidgets";
+import StockCard from "./components/StockCard";
 
-function normalizeTimestamp(value) {
-  const numeric = Number(value);
-  let normalized = value;
-  if (Number.isFinite(numeric)) {
-    // Support both epoch seconds and epoch milliseconds
-    normalized = Math.abs(numeric) < 1e11 ? numeric * 1000 : numeric;
-  }
-  const date = new Date(normalized);
-  const ts = date.getTime();
-  return Number.isNaN(ts) ? null : ts;
-}
-
-function formatDateLabel(ts) {
-  return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-function toNumberOrNaN(value) {
-  if (typeof value === "string") {
-    const cleaned = value.replace(/[^0-9.+-]/g, "");
-    const n = Number(cleaned);
-    return Number.isFinite(n) ? n : NaN;
-  }
-  const n = Number(value);
-  return Number.isFinite(n) ? n : NaN;
-}
-
-const INR_FORMATTER = new Intl.NumberFormat("en-IN", {
-  style: "currency",
-  currency: "INR",
-  maximumFractionDigits: 2,
-});
-
-function formatINR(value) {
-  const n = toNumberOrNaN(value);
-  return Number.isFinite(n) ? INR_FORMATTER.format(n) : "—";
-}
-
-function formatPercent(value, digits = 2) {
-  const n = toNumberOrNaN(value);
-  return Number.isFinite(n) ? `${n.toFixed(digits)}%` : "—";
-}
-
-function firstFinite(values) {
-  for (const v of values) {
-    if (Number.isFinite(v)) return v;
-  }
-  return NaN;
-}
-
-function getCandleRows(histJson) {
-  if (Array.isArray(histJson?.data)) return histJson.data;
-  if (Array.isArray(histJson?.data?.candles)) return histJson.data.candles;
-  if (Array.isArray(histJson?.candles)) return histJson.candles;
-  return [];
-}
-
-function extractCandlePoint(row) {
-  if (Array.isArray(row)) {
-    const ts = normalizeTimestamp(row[0]);
-    const numericRow = row.map(toNumberOrNaN);
-    // Prefer canonical candle positions, then fallback to any plausible price-like number.
-    const price = firstFinite([
-      numericRow[4], // close (canonical)
-      numericRow[2], // high (canonical)
-      numericRow[1], // open
-      numericRow[3], // low
-      ...numericRow.filter(Number.isFinite),
-    ]);
-    return { ts, price };
-  }
-
-  if (row && typeof row === "object") {
-    const ts = normalizeTimestamp(
-      row.timestamp ?? row.time ?? row.date ?? row.datetime ?? row.candle_time
-    );
-    const price = firstFinite([
-      toNumberOrNaN(row.close ?? row.Close ?? row.c ?? row.close_price ?? row.last_price ?? row.price ?? row.ltp),
-      toNumberOrNaN(row.high ?? row.High ?? row.h ?? row.high_price),
-      toNumberOrNaN(row.open ?? row.Open ?? row.o),
-      toNumberOrNaN(row.low ?? row.Low ?? row.l),
-    ]);
-    return { ts, price };
-  }
-
-  return { ts: null, price: NaN };
-}
-
-// ── Sub-components ───────────────────────────────────────────────────────────
-function RiskMeter({ score }) {
-  const color = score < 35 ? "#00e5a0" : score < 65 ? "#facc15" : "#f87171";
-  const label = score < 35 ? "LOW" : score < 65 ? "MEDIUM" : "HIGH";
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-        <span style={{ fontSize: 11, color: "#8899aa", letterSpacing: 1 }}>RISK SCORE</span>
-        <span style={{ fontSize: 11, color, fontWeight: 700 }}>{label}</span>
-      </div>
-      <div style={{ height: 6, background: "#1e2d3d", borderRadius: 3, overflow: "hidden" }}>
-        <div style={{ width: `${score}%`, height: "100%", background: `linear-gradient(90deg, #00e5a0, ${color})`, borderRadius: 3, transition: "width 0.8s ease" }} />
-      </div>
-      <div style={{ textAlign: "right", fontSize: 12, color, marginTop: 3, fontWeight: 600 }}>{score}/100</div>
-    </div>
-  );
-}
-
-function ConfidenceRing({ value }) {
-  const r = 28, circ = 2 * Math.PI * r;
-  const dash = (value / 100) * circ;
-  return (
-    <div style={{ position: "relative", width: 72, height: 72, flexShrink: 0 }}>
-      <svg width={72} height={72} style={{ transform: "rotate(-90deg)" }}>
-        <circle cx={36} cy={36} r={r} fill="none" stroke="#1e2d3d" strokeWidth={6} />
-        <circle cx={36} cy={36} r={r} fill="none" stroke="#00e5a0" strokeWidth={6}
-          strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round"
-          style={{ transition: "stroke-dasharray 1s ease" }} />
-      </svg>
-      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ fontSize: 14, fontWeight: 700, color: "#00e5a0", lineHeight: 1 }}>{value}%</span>
-        <span style={{ fontSize: 9, color: "#556677", letterSpacing: 0.5 }}>CONF</span>
-      </div>
-    </div>
-  );
-}
-
-const CustomTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
-  
-  const data = payload[0]?.payload;
-  if (!data) return null;
-  const displayLabel = Number.isFinite(Number(label)) ? formatDateLabel(Number(label)) : label;
-  
-  return (
-    <div style={{ background: "#0d1a26", border: "1px solid #1e3a52", borderRadius: 8, padding: "8px 14px", fontSize: 12 }}>
-      <div style={{ color: "#8899aa", marginBottom: 4 }}>{displayLabel}</div>
-      {data.actual !== null && (
-        <div style={{ color: "#4a9eff", fontWeight: 600 }}>
-          Actual: {formatINR(data.actual)}
-        </div>
-      )}
-      {data.predicted !== null && (
-        <div style={{ color: "#00e5a0", fontWeight: 600 }}>
-          Forecast: {formatINR(data.predicted)}
-        </div>
-      )}
-      {data.lower !== null && data.upper !== null && (
-        <div style={{ color: "#00e5a030", fontSize: 10, marginTop: 2 }}>
-          Range: {formatINR(data.lower)} - {formatINR(data.upper)}
-        </div>
-      )}
-    </div>
-  );
-};
-
-function StockCard({ ticker, selected, data, onClick, onRemove, name, meta }) {
-  // allow rendering when only meta (server list) is available
-  if (!data && !meta) return null;
-  const up = (data?.changePct ?? 0) >= 0;
-  const displayName = name || data?.name || ticker;
-  const displayLast = meta?.last_price ?? data?.lastPrice ?? "—";
-  return (
-    <div onClick={onClick} style={{
-      background: selected ? "linear-gradient(135deg, #0d2236 0%, #0f2940 100%)" : "#0a1520",
-      border: `1px solid ${selected ? "#00e5a060" : "#1a2a3a"}`,
-      borderRadius: 10, padding: "14px 16px", cursor: "pointer",
-      transition: "all 0.2s", boxShadow: selected ? "0 0 20px #00e5a015" : "none"
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div>
-          <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: selected ? "#00e5a0" : "#cde" }}>{displayName}</div>
-          <div style={{ fontSize: 10, color: "#556677", marginTop: 2 }}>{ticker}</div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          {typeof onRemove === "function" && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemove();
-              }}
-              title="Remove from watchlist"
-              style={{
-                background: "#2a1218",
-                color: "#f87171",
-                border: "1px solid #f8717155",
-                borderRadius: 6,
-                padding: "2px 6px",
-                fontSize: 10,
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              X
-            </button>
-          )}
-        </div>
-      </div>
-      <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 18, color: "#e8f4ff", fontWeight: 700 }}>{formatINR(displayLast)}</span>
-        <span style={{ fontSize: 12, color: up ? "#4ade80" : "#f87171", fontWeight: 600 }}>{up ? "▲" : "▼"} {Math.abs(data?.changePct ?? 0)}%</span>
-      </div>
-    </div>
-  );
-}
-
-// ── Main Dashboard ────────────────────────────────────────────────────────────
 export default function StockDashboard() {
-  const [stocks, setStocks] = useState([]);
-  const [selected, setSelected] = useState("");
-  const [stockData, setStockData] = useState({});
-  const [loading, setLoading] = useState(false);
-  const [remoteStocks, setRemoteStocks] = useState(null);
   const [activePage, setActivePage] = useState("stock");
-
-  const [paperPortfolio, setPaperPortfolio] = useState(null);
-  const [paperLoading, setPaperLoading] = useState(false);
-  const [paperBusy, setPaperBusy] = useState(false);
-  const [paperError, setPaperError] = useState("");
-  const [paperNotice, setPaperNotice] = useState("");
+  
+  // Local Form UI States
   const [tradeAmount, setTradeAmount] = useState("");
   const [tradePrice, setTradePrice] = useState("");
   const [fundAmount, setFundAmount] = useState("");
   const [stockSearch, setStockSearch] = useState("");
   const [addStockIsin, setAddStockIsin] = useState("");
   const [addStockName, setAddStockName] = useState("");
-  const [stockBusy, setStockBusy] = useState(false);
-  const [stockNotice, setStockNotice] = useState("");
-  const [stockError, setStockError] = useState("");
 
-  async function refreshPaperPortfolio(showLoader = false) {
-    if (showLoader) setPaperLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/paper/portfolio`);
-      if (!res.ok) {
-        throw new Error(`Paper portfolio fetch failed: ${res.status}`);
-      }
-      const json = await res.json();
-      setPaperPortfolio(json);
-      setPaperError("");
-    } catch (err) {
-      console.error("Paper portfolio error:", err);
-      setPaperError("Unable to load paper trading data.");
-    } finally {
-      if (showLoader) setPaperLoading(false);
-    }
-  }
+  // Connect Hooks
+  const {
+    stocks, selected, setSelected, stockData, loading, remoteStocks,
+    stockBusy, stockError, stockNotice, addWatchlistStock, removeWatchlistStock
+  } = useStocks();
 
-  async function placePaperOrder(side) {
-    const amount = Number(tradeAmount);
-    if (!selected) {
-      setPaperError("Select a stock before placing an order.");
-      return;
-    }
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setPaperError("Enter a valid amount to trade.");
-      return;
-    }
+  const {
+    paperPortfolio, paperLoading, paperBusy, paperError, paperNotice,
+    placePaperOrder, addPaperFunds, resetPaperAccount
+  } = usePaperTrade();
 
-    const fallbackPrice = Number(todayPrice ?? data?.lastPrice);
-    const editedPrice = Number(tradePrice);
-    const executionPrice =
-      Number.isFinite(editedPrice) && editedPrice > 0
-        ? editedPrice
-        : Number.isFinite(fallbackPrice) && fallbackPrice > 0
-          ? fallbackPrice
-          : NaN;
-
-    if (!Number.isFinite(executionPrice) || executionPrice <= 0) {
-      setPaperError("Enter a valid execution price.");
-      return;
-    }
-
-    setPaperBusy(true);
-    setPaperError("");
-    setPaperNotice("");
-    try {
-      const res = await fetch(`${API_BASE}/api/paper/trade`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          isin: selected,
-          side,
-          amount,
-          price: executionPrice,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.detail || `Paper trade failed: ${res.status}`);
-      }
-      setPaperPortfolio(json.portfolio || null);
-      setPaperNotice(`${side.toUpperCase()} order executed successfully.`);
-      setTradeAmount("");
-    } catch (err) {
-      console.error("Paper trade error:", err);
-      setPaperError(err.message || "Paper trade failed.");
-    } finally {
-      setPaperBusy(false);
-    }
-  }
-
-  async function addPaperFunds() {
-    const amount = Number(fundAmount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setPaperError("Enter a valid funding amount.");
-      return;
-    }
-    setPaperBusy(true);
-    setPaperError("");
-    setPaperNotice("");
-    try {
-      const res = await fetch(`${API_BASE}/api/paper/admin/fund`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.detail || `Funding failed: ${res.status}`);
-      }
-      setPaperPortfolio(json);
-      setPaperNotice("Funds added to paper wallet.");
-      setFundAmount("");
-    } catch (err) {
-      console.error("Paper funding error:", err);
-      setPaperError(err.message || "Funding failed.");
-    } finally {
-      setPaperBusy(false);
-    }
-  }
-
-  async function resetPaperAccount() {
-    const ok = window.confirm("Reset paper account? This clears all holdings and trades.");
-    if (!ok) return;
-    setPaperBusy(true);
-    setPaperError("");
-    setPaperNotice("");
-    try {
-      const res = await fetch(`${API_BASE}/api/paper/admin/reset`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ initial_cash: 0 }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.detail || `Reset failed: ${res.status}`);
-      }
-      setPaperPortfolio(json);
-      setPaperNotice("Paper account reset completed.");
-    } catch (err) {
-      console.error("Paper reset error:", err);
-      setPaperError(err.message || "Reset failed.");
-    } finally {
-      setPaperBusy(false);
-    }
-  }
-
-  async function fetchWatchlistStocks() {
-    try {
-      const res = await fetch(`${API_BASE}/api/stocks`);
-      if (!res.ok) throw new Error("Failed to fetch stocks");
-      const json = await res.json();
-      const list = (json.stocks || []).map((s) => ({
-        ticker: s.isin || s.ticker || s.id,
-        name: s.name || s.company || "",
-        last_price: s.last_price ?? s.lastPrice ?? null,
-      }));
-      setRemoteStocks(list);
-      setStocks(list);
-      if (list.length) {
-        if (!selected || !list.some((row) => row.ticker === selected)) {
-          setSelected(list[0].ticker);
-        }
-      } else {
-        setSelected("");
-      }
-    } catch (err) {
-      console.error("Error fetching remote stocks", err);
-      setStocks([]);
-      setRemoteStocks([]);
-    }
-  }
-
-  async function addWatchlistStock() {
-    const isin = (addStockIsin || "").trim().toUpperCase();
-    const name = (addStockName || "").trim();
-    if (!isin) {
-      setStockError("Enter ISIN to add stock.");
-      return;
-    }
-    if (!name) {
-      setStockError("Enter stock name to add stock.");
-      return;
-    }
-    setStockBusy(true);
-    setStockError("");
-    setStockNotice("");
-    try {
-      const res = await fetch(`${API_BASE}/api/stocks/add`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isin, name }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.detail || `Add stock failed: ${res.status}`);
-      }
-      const list = (json.stocks || []).map((s) => ({
-        ticker: s.isin || s.ticker || s.id,
-        name: s.name || s.company || "",
-        last_price: s.last_price ?? s.lastPrice ?? null,
-      }));
-      setRemoteStocks(list);
-      setStocks(list);
-      setSelected(isin);
-      setAddStockIsin("");
-      setAddStockName("");
-      setStockNotice(`Added ${name} (${isin}) to watchlist.`);
-      setTimeout(() => setStockNotice(""), 2500);
-    } catch (err) {
-      console.error("Add stock error:", err);
-      setStockError(err.message || "Unable to add stock.");
-    } finally {
-      setStockBusy(false);
-    }
-  }
-
-  async function removeWatchlistStock(ticker) {
-    const isin = (ticker || "").trim().toUpperCase();
-    if (!isin) return;
-
-    const ok = window.confirm(`Remove ${isin} from watchlist?`);
-    if (!ok) return;
-
-    setStockBusy(true);
-    setStockError("");
-    setStockNotice("");
-    try {
-      const res = await fetch(`${API_BASE}/api/stocks/${encodeURIComponent(isin)}`, {
-        method: "DELETE",
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.detail || `Remove stock failed: ${res.status}`);
-      }
-      const list = (json.stocks || []).map((s) => ({
-        ticker: s.isin || s.ticker || s.id,
-        name: s.name || s.company || "",
-        last_price: s.last_price ?? s.lastPrice ?? null,
-      }));
-      setRemoteStocks(list);
-      setStocks(list);
-      setStockData((prev) => {
-        const next = { ...prev };
-        delete next[isin];
-        return next;
-      });
-      if (!list.some((s) => s.ticker === selected)) {
-        setSelected(list[0]?.ticker || "");
-      }
-      setStockNotice(`Removed ${isin} from watchlist.`);
-      setTimeout(() => setStockNotice(""), 2500);
-    } catch (err) {
-      console.error("Remove stock error:", err);
-      setStockError(err.message || "Unable to remove stock.");
-    } finally {
-      setStockBusy(false);
-    }
-  }
-
-  // Fetch data for a ticker
-  async function loadStock(ticker) {
-    if (!ticker || stockData[ticker]) return;
-    setLoading(true);
-    try {
-      // Always attempt to fetch historical + prediction data from backend
-      const isin = ticker;
-      const end = new Date();
-      const start = new Date();
-      start.setDate(end.getDate() - 180);
-      const fmt = d => d.toISOString().slice(0, 10);
-
-      const histResp = await fetch(`${API_BASE}/api/historical-candles`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isin, start_date: fmt(start), end_date: fmt(end), interval: 'day', count: 1 })
-      });
-      if (!histResp.ok) throw new Error(`History fetch failed: ${histResp.status}`);
-      const histJson = await histResp.json();
-
-      const candleRows = getCandleRows(histJson);
-      const rawHistory = candleRows
-        .map((row, idx) => {
-          const { ts, price } = extractCandlePoint(row);
-          if (!Number.isFinite(price)) return null;
-          return { idx, ts, price: +price.toFixed(2) };
-        })
-        .filter(Boolean);
-
-      // Keep data even when some timestamps are invalid by synthesizing missing points.
-      const historySeed = rawHistory
-        .slice()
-        .sort((a, b) => {
-          if (a.ts === null && b.ts === null) return a.idx - b.idx;
-          if (a.ts === null) return 1;
-          if (b.ts === null) return -1;
-          return a.ts - b.ts;
-        });
-
-      const historyBaseTs =
-        historySeed.find((row) => row.ts !== null)?.ts ??
-        (Date.now() - historySeed.length * 86400000);
-
-      const history = historySeed
-        .map((row, i) => {
-          const ts = row.ts ?? (historyBaseTs + i * 86400000);
-          return {
-            ts,
-            dateLabel: formatDateLabel(ts),
-            price: row.price,
-          };
-        })
-        .sort((a, b) => a.ts - b.ts);
-
-      if (!history.length) {
-        console.warn(`No usable historical points returned for ${ticker}`, candleRows?.[0]);
-      }
-
-      let predJson = {};
-      try {
-        const predResp = await fetch(`${API_BASE}/api/predict`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            isin,
-            start_date: fmt(start),
-            end_date: fmt(end),
-            interval: "day",
-            count: 1,
-            forecast_days: 5,
-            backtest_days: 20,
-          }),
-        });
-        if (predResp.ok) {
-          predJson = await predResp.json();
-        } else {
-          console.warn(`Predict fetch failed for ${ticker}: ${predResp.status}`);
-        }
-      } catch (predErr) {
-        console.warn(`Predict fetch error for ${ticker}:`, predErr);
-      }
-
-      const predictionContainer =
-        predJson?.predicted_high && typeof predJson.predicted_high === "object"
-          ? predJson.predicted_high
-          : predJson;
-
-      const predictedHigh = Number(predictionContainer?.predicted_high ?? predJson?.predicted_high);
-      const intervalLow = Number(predictionContainer?.p10 ?? predJson?.p10);
-      const intervalHigh = Number(predictionContainer?.p90 ?? predJson?.p90);
-
-      const lastPrice = history.length
-        ? history[history.length - 1].price
-        : Number.isFinite(predictedHigh)
-          ? predictedHigh
-          : 0;
-
-      const baseTs = history.length ? history[history.length - 1].ts : Date.now();
-      const futureForecast = (predJson.future_forecast || [])
-        .map((point, idx) => {
-          const fallbackTs = baseTs + (idx + 1) * 86400000;
-          const ts = normalizeTimestamp(point.timestamp || point.date || fallbackTs);
-          const value = Number(point.predicted_high ?? point.predicted ?? point.price);
-          let lower = Number(point.p10 ?? point.lower);
-          let upper = Number(point.p90 ?? point.upper);
-          if (ts === null || !Number.isFinite(value)) return null;
-          if (Number.isFinite(lower) && Number.isFinite(upper) && lower > upper) {
-            [lower, upper] = [upper, lower];
-          }
-          return {
-            ts,
-            dateLabel: formatDateLabel(ts),
-            price: +value.toFixed(2),
-            lower: Number.isFinite(lower) ? +lower.toFixed(2) : null,
-            upper: Number.isFinite(upper) ? +upper.toFixed(2) : null,
-          };
-        })
-        .filter(Boolean)
-        .sort((a, b) => a.ts - b.ts)
-        .slice(0, 5);
-
-      let predicted = futureForecast;
-      if (!predicted.length && Number.isFinite(predictedHigh)) {
-        let low = Number.isFinite(intervalLow) ? intervalLow : predictedHigh;
-        let high = Number.isFinite(intervalHigh) ? intervalHigh : predictedHigh;
-        if (Number.isFinite(low) && Number.isFinite(high) && low > high) {
-          [low, high] = [high, low];
-        }
-        predicted = [{
-          ts: baseTs + 86400000,
-          dateLabel: formatDateLabel(baseTs + 86400000),
-          price: +predictedHigh.toFixed(2),
-          lower: Number.isFinite(low) ? +low.toFixed(2) : null,
-          upper: Number.isFinite(high) ? +high.toFixed(2) : null,
-        }];
-      }
-
-      const backtest = (predJson.backtest || [])
-        .map((point) => {
-          const ts = normalizeTimestamp(point.timestamp || point.date);
-          const actualHigh = Number(point.actual_high ?? point.actual);
-          const predictedValue = Number(point.predicted_high ?? point.predicted);
-          if (ts === null || !Number.isFinite(actualHigh) || !Number.isFinite(predictedValue)) {
-            return null;
-          }
-          return {
-            ts,
-            dateLabel: formatDateLabel(ts),
-            actual: +actualHigh.toFixed(2),
-            predicted: +predictedValue.toFixed(2),
-          };
-        })
-        .filter(Boolean)
-        .sort((a, b) => a.ts - b.ts);
-
-      const confidenceValue = Number(predJson.confidence);
-      const confidence =
-        Number.isFinite(confidenceValue)
-          ? confidenceValue
-          : predJson.confidence === "high"
-            ? 80
-            : predJson.confidence === "moderate"
-              ? 50
-              : 0;
-      const maeValue = Number(predJson.mae ?? predJson?.forecast?.mae);
-      const mapeValue = Number(predJson.mape ?? predJson?.forecast?.mape);
-      const p10Value = Number(predJson.p10 ?? predJson?.forecast?.p10);
-      const p90Value = Number(predJson.p90 ?? predJson?.forecast?.p90);
-      const errorRatioPct =
-        Number.isFinite(maeValue) && Number.isFinite(predictedHigh) && Math.abs(predictedHigh) > 0
-          ? (maeValue / Math.abs(predictedHigh)) * 100
-          : NaN;
-
-      const dataObj = {
-        ticker: isin,
-        name: histJson.isin || isin,
-        history,
-        backtest,
-        predicted,
-        lastPrice: +lastPrice,
-        change: history.length ? +(lastPrice - history[0].price).toFixed(2) : 0,
-        changePct: history.length ? +(((lastPrice - history[0].price) / history[0].price) * 100).toFixed(2) : 0,
-        confidence,
-        mae: Number.isFinite(maeValue) ? +maeValue.toFixed(4) : null,
-        mape: Number.isFinite(mapeValue) ? +mapeValue.toFixed(4) : null,
-        p10: Number.isFinite(p10Value) ? +p10Value.toFixed(2) : null,
-        p90: Number.isFinite(p90Value) ? +p90Value.toFixed(2) : null,
-        errorRatioPct: Number.isFinite(errorRatioPct) ? +errorRatioPct.toFixed(4) : null,
-        riskScore: Number.isFinite(+predJson.riskScore) ? +predJson.riskScore : 0,
-        trend: predJson.trend || 'Neutral',
-        trendStrength: Number.isFinite(+predJson.trendStrength) ? +predJson.trendStrength : 0,
-        indicators: {
-          rsi: Number.isFinite(+predJson.rsi) ? +predJson.rsi : 0,
-          macd: Number.isFinite(+predJson.macd) ? +predJson.macd : 0,
-          ema20: Number.isFinite(+predJson.ema20) ? +predJson.ema20 : 0,
-          ema50: Number.isFinite(+predJson.ema50) ? +predJson.ema50 : 0,
-          volume: predJson.volume ?? 0
-        }
-      };
-
-      setStockData(d => ({ ...d, [ticker]: dataObj }));
-    } catch (e) {
-      console.error('Backend fetch failed, using zero-value fallback:', e);
-      setStockData(d => ({ ...d, [ticker]: buildEmptyStockData(ticker) }));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Fetch available stocks from backend on mount (dynamic watchlist)
-  useEffect(() => {
-    fetchWatchlistStocks();
-  }, []);
-
-  useEffect(() => { loadStock(selected); }, [selected]);
-
-  useEffect(() => {
-    refreshPaperPortfolio(true);
-    const timer = setInterval(() => {
-      refreshPaperPortfolio(false);
-    }, 30000);
-    return () => clearInterval(timer);
-  }, []);
-
+  // Derived Values
   const data = stockData[selected];
   const meta = (remoteStocks || stocks).find(s => s.ticker === selected) || {};
   const todayPrice = meta.last_price ?? data?.lastPrice ?? null;
@@ -735,21 +45,35 @@ export default function StockDashboard() {
     }
   }, [selected, todayPrice, data?.lastPrice]);
 
-  const paper = paperPortfolio || {
-    cash_balance: 0,
-    total_funded: 0,
-    invested_cost: 0,
-    market_value: 0,
-    equity: 0,
-    realized_pnl: 0,
-    unrealized_pnl: 0,
-    total_pnl: 0,
-    pnl_vs_funded: 0,
-    day_pnl: 0,
-    positions: [],
-    trades: [],
-    cash_flows: [],
+  const handlePlaceOrder = async (side) => {
+    const amount = Number(tradeAmount);
+    const fallbackPrice = Number(todayPrice ?? data?.lastPrice);
+    const editedPrice = Number(tradePrice);
+    const executionPrice = Number.isFinite(editedPrice) && editedPrice > 0 ? editedPrice : Number.isFinite(fallbackPrice) && fallbackPrice > 0 ? fallbackPrice : NaN;
+    
+    const success = await placePaperOrder(side, selected, amount, executionPrice);
+    if (success) setTradeAmount("");
   };
+
+  const handleAddStock = async () => {
+    const success = await addWatchlistStock(addStockIsin, addStockName);
+    if (success) {
+      setAddStockIsin("");
+      setAddStockName("");
+    }
+  };
+
+  const handleAddFunds = async () => {
+    const success = await addPaperFunds(fundAmount);
+    if (success) setFundAmount("");
+  };
+
+  const paper = paperPortfolio || {
+    cash_balance: 0, total_funded: 0, invested_cost: 0, market_value: 0, equity: 0,
+    realized_pnl: 0, unrealized_pnl: 0, total_pnl: 0, pnl_vs_funded: 0, day_pnl: 0,
+    positions: [], trades: [], cash_flows: [],
+  };
+  
   const selectedPosition = (paper.positions || []).find((p) => p.isin === selected);
   const watchlistSource = remoteStocks || stocks;
   const query = (stockSearch || "").trim().toLowerCase();
@@ -761,7 +85,6 @@ export default function StockDashboard() {
       })
     : watchlistSource;
   
-  // Chart shows actual for last 10 trading days + predicted line for last 10 and next 5.
   const chartActualHistory = data?.history ? data.history.slice(-10) : [];
   const chartBacktest = data?.backtest ? data.backtest.slice(-10) : [];
   const chartFuture = data?.predicted ? data.predicted.slice(0, 5) : [];
@@ -818,11 +141,7 @@ export default function StockDashboard() {
                 background: activePage === "stock" ? "#00e5a022" : "#0a1520",
                 color: activePage === "stock" ? "#00e5a0" : "#778899",
                 border: `1px solid ${activePage === "stock" ? "#00e5a055" : "#1a2a3a"}`,
-                borderRadius: 8,
-                padding: "6px 10px",
-                fontSize: 11,
-                fontWeight: 700,
-                cursor: "pointer",
+                borderRadius: 8, padding: "6px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer",
               }}
             >
               STOCK PAGE
@@ -833,11 +152,7 @@ export default function StockDashboard() {
                 background: activePage === "admin" ? "#00e5a022" : "#0a1520",
                 color: activePage === "admin" ? "#00e5a0" : "#778899",
                 border: `1px solid ${activePage === "admin" ? "#00e5a055" : "#1a2a3a"}`,
-                borderRadius: 8,
-                padding: "6px 10px",
-                fontSize: 11,
-                fontWeight: 700,
-                cursor: "pointer",
+                borderRadius: 8, padding: "6px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer",
               }}
             >
               ADMIN PAGE
@@ -845,10 +160,7 @@ export default function StockDashboard() {
           </div>
           <div style={{ fontSize: 11, color: "#8899aa" }}>Wallet: <span style={{ color: "#00e5a0", fontWeight: 700 }}>{formatINR(paper.cash_balance)}</span></div>
           <div style={{ fontSize: 11, color: "#445566" }}>DATA SOURCE</div>
-          <div style={{
-            background: "#1a2a3a", border: "1px solid #2a3a4a",
-            color: "#778899", borderRadius: 20, padding: "4px 14px", fontSize: 11, fontWeight: 600, letterSpacing: 1
-          }}>
+          <div style={{ background: "#1a2a3a", border: "1px solid #2a3a4a", color: "#778899", borderRadius: 20, padding: "4px 14px", fontSize: 11, fontWeight: 600, letterSpacing: 1 }}>
             LIVE API
           </div>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#00e5a0", boxShadow: "0 0 8px #00e5a0", animation: "pulse 2s infinite" }} />
@@ -860,73 +172,26 @@ export default function StockDashboard() {
         <div style={{ fontSize: 10, color: "#445566", letterSpacing: 2, marginBottom: 12, paddingLeft: 4 }}>WATCHLIST</div>
         <div style={{ marginBottom: 10 }}>
           <input
-            type="text"
-            value={stockSearch}
-            onChange={(e) => setStockSearch(e.target.value)}
+            type="text" value={stockSearch} onChange={(e) => setStockSearch(e.target.value)}
             placeholder="Search by name or ISIN"
-            style={{
-              width: "100%",
-              background: "#060e17",
-              border: "1px solid #1a2a3a",
-              color: "#cde",
-              borderRadius: 8,
-              padding: "9px 10px",
-              fontSize: 12,
-              outline: "none",
-            }}
+            style={{ width: "100%", background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "9px 10px", fontSize: 12, outline: "none" }}
           />
         </div>
         <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 10, padding: 10, marginBottom: 12 }}>
           <div style={{ fontSize: 10, color: "#556677", marginBottom: 8, letterSpacing: 1 }}>ADD STOCK</div>
           <input
-            type="text"
-            value={addStockIsin}
-            onChange={(e) => setAddStockIsin(e.target.value.toUpperCase())}
+            type="text" value={addStockIsin} onChange={(e) => setAddStockIsin(e.target.value.toUpperCase())}
             placeholder="ISIN (e.g. INE467B01029)"
-            style={{
-              width: "100%",
-              background: "#060e17",
-              border: "1px solid #1a2a3a",
-              color: "#cde",
-              borderRadius: 8,
-              padding: "8px 10px",
-              fontSize: 11,
-              outline: "none",
-              marginBottom: 8,
-            }}
+            style={{ width: "100%", background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "8px 10px", fontSize: 11, outline: "none", marginBottom: 8 }}
           />
           <input
-            type="text"
-            value={addStockName}
-            onChange={(e) => setAddStockName(e.target.value)}
+            type="text" value={addStockName} onChange={(e) => setAddStockName(e.target.value)}
             placeholder="Stock name"
-            style={{
-              width: "100%",
-              background: "#060e17",
-              border: "1px solid #1a2a3a",
-              color: "#cde",
-              borderRadius: 8,
-              padding: "8px 10px",
-              fontSize: 11,
-              outline: "none",
-              marginBottom: 8,
-            }}
+            style={{ width: "100%", background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "8px 10px", fontSize: 11, outline: "none", marginBottom: 8 }}
           />
           <button
-            onClick={addWatchlistStock}
-            disabled={stockBusy}
-            style={{
-              width: "100%",
-              background: "#00e5a022",
-              color: "#00e5a0",
-              border: "1px solid #00e5a055",
-              borderRadius: 8,
-              padding: "8px 10px",
-              fontSize: 11,
-              fontWeight: 700,
-              cursor: stockBusy ? "not-allowed" : "pointer",
-              opacity: stockBusy ? 0.6 : 1,
-            }}
+            onClick={handleAddStock} disabled={stockBusy}
+            style={{ width: "100%", background: "#00e5a022", color: "#00e5a0", border: "1px solid #00e5a055", borderRadius: 8, padding: "8px 10px", fontSize: 11, fontWeight: 700, cursor: stockBusy ? "not-allowed" : "pointer", opacity: stockBusy ? 0.6 : 1 }}
           >
             {stockBusy ? "ADDING..." : "ADD TO WATCHLIST"}
           </button>
@@ -941,9 +206,7 @@ export default function StockDashboard() {
             <StockCard key={s.ticker} ticker={s.ticker} name={s.name} meta={s} selected={selected === s.ticker}
               data={stockData[s.ticker]} onClick={() => { setSelected(s.ticker); setActivePage("stock"); }} onRemove={() => removeWatchlistStock(s.ticker)} />
           ))}
-          {!visibleStocks.length && (
-            <div style={{ color: "#556677", fontSize: 11, padding: "6px 4px" }}>No stocks found.</div>
-          )}
+          {!visibleStocks.length && <div style={{ color: "#556677", fontSize: 11, padding: "6px 4px" }}>No stocks found.</div>}
         </div>
       </div>
 
@@ -957,15 +220,7 @@ export default function StockDashboard() {
           ) : (
             <>
               {(paperError || paperNotice) && (
-                <div style={{
-                  marginBottom: 16,
-                  borderRadius: 10,
-                  padding: "10px 12px",
-                  border: `1px solid ${paperError ? "#f8717155" : "#00e5a055"}`,
-                  background: paperError ? "#2a1218" : "#0f2a24",
-                  color: paperError ? "#fca5a5" : "#7cfccf",
-                  fontSize: 12,
-                }}>
+                <div style={{ marginBottom: 16, borderRadius: 10, padding: "10px 12px", border: `1px solid ${paperError ? "#f8717155" : "#00e5a055"}`, background: paperError ? "#2a1218" : "#0f2a24", color: paperError ? "#fca5a5" : "#7cfccf", fontSize: 12 }}>
                   {paperError || paperNotice}
                 </div>
               )}
@@ -973,10 +228,8 @@ export default function StockDashboard() {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
                 {[
                   { label: "Cash Balance", value: formatINR(paper.cash_balance), color: "#00e5a0" },
-                  // { label: "Equity", value: formatINR(paper.equity), color: "#cde" },
                   { label: "Total Invested", value: formatINR(paper.invested_cost), color: "#9fe7ff" },
                   { label: "Market Value", value: formatINR(paper.market_value), color: "#4a9eff" },
-                  // { label: "Day P/L", value: formatINR(paper.day_pnl), color: (paper.day_pnl ?? 0) >= 0 ? "#4ade80" : "#f87171" },
                   { label: "Total P/L", value: formatINR(paper.total_pnl), color: (paper.total_pnl ?? 0) >= 0 ? "#4ade80" : "#f87171" },
                 ].map((item) => (
                   <div key={item.label} style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 10, padding: "12px 14px" }}>
@@ -990,53 +243,19 @@ export default function StockDashboard() {
                 <div style={{ fontSize: 11, color: "#667788", letterSpacing: 1, marginBottom: 12 }}>ADMIN FUNDING</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={fundAmount}
-                    onChange={(e) => setFundAmount(e.target.value)}
+                    type="number" min="0" step="0.01" value={fundAmount} onChange={(e) => setFundAmount(e.target.value)}
                     placeholder="Amount in INR"
-                    style={{
-                      background: "#060e17",
-                      border: "1px solid #1a2a3a",
-                      color: "#cde",
-                      borderRadius: 8,
-                      padding: "10px 12px",
-                      width: 220,
-                      outline: "none",
-                    }}
+                    style={{ background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "10px 12px", width: 220, outline: "none" }}
                   />
                   <button
-                    onClick={addPaperFunds}
-                    disabled={paperBusy}
-                    style={{
-                      background: "#00e5a022",
-                      color: "#00e5a0",
-                      border: "1px solid #00e5a055",
-                      borderRadius: 8,
-                      padding: "9px 14px",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: paperBusy ? "not-allowed" : "pointer",
-                      opacity: paperBusy ? 0.6 : 1,
-                    }}
+                    onClick={handleAddFunds} disabled={paperBusy}
+                    style={{ background: "#00e5a022", color: "#00e5a0", border: "1px solid #00e5a055", borderRadius: 8, padding: "9px 14px", fontSize: 12, fontWeight: 700, cursor: paperBusy ? "not-allowed" : "pointer", opacity: paperBusy ? 0.6 : 1 }}
                   >
                     Add Funds
                   </button>
                   <button
-                    onClick={resetPaperAccount}
-                    disabled={paperBusy}
-                    style={{
-                      background: "#2a1218",
-                      color: "#f87171",
-                      border: "1px solid #f8717155",
-                      borderRadius: 8,
-                      padding: "9px 14px",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: paperBusy ? "not-allowed" : "pointer",
-                      opacity: paperBusy ? 0.6 : 1,
-                    }}
+                    onClick={resetPaperAccount} disabled={paperBusy}
+                    style={{ background: "#2a1218", color: "#f87171", border: "1px solid #f8717155", borderRadius: 8, padding: "9px 14px", fontSize: 12, fontWeight: 700, cursor: paperBusy ? "not-allowed" : "pointer", opacity: paperBusy ? 0.6 : 1 }}
                   >
                     Reset Account
                   </button>
@@ -1111,15 +330,7 @@ export default function StockDashboard() {
         ) : data ? (
           <>
             {(paperError || paperNotice) && (
-              <div style={{
-                marginBottom: 16,
-                borderRadius: 10,
-                padding: "10px 12px",
-                border: `1px solid ${paperError ? "#f8717155" : "#00e5a055"}`,
-                background: paperError ? "#2a1218" : "#0f2a24",
-                color: paperError ? "#fca5a5" : "#7cfccf",
-                fontSize: 12,
-              }}>
+              <div style={{ marginBottom: 16, borderRadius: 10, padding: "10px 12px", border: `1px solid ${paperError ? "#f8717155" : "#00e5a055"}`, background: paperError ? "#2a1218" : "#0f2a24", color: paperError ? "#fca5a5" : "#7cfccf", fontSize: 12 }}>
                 {paperError || paperNotice}
               </div>
             )}
@@ -1129,8 +340,8 @@ export default function StockDashboard() {
               <div>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
                   {(() => {
-                    const meta = (remoteStocks || stocks).find(s => s.ticker === selected) || {};
-                    const displayName = meta.name || data?.name || selected;
+                    const metaObj = (remoteStocks || stocks).find(s => s.ticker === selected) || {};
+                    const displayName = metaObj.name || data?.name || selected;
                     return (
                       <>
                         <h1 style={{ fontFamily: "'Space Mono', monospace", fontSize: 28, margin: 0, color: "#fff" }}>{displayName}</h1>
@@ -1165,87 +376,33 @@ export default function StockDashboard() {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={tradeAmount}
-                  onChange={(e) => setTradeAmount(e.target.value)}
+                  type="number" min="0" step="0.01" value={tradeAmount} onChange={(e) => setTradeAmount(e.target.value)}
                   placeholder="Trade amount in INR"
-                  style={{
-                    background: "#060e17",
-                    border: "1px solid #1a2a3a",
-                    color: "#cde",
-                    borderRadius: 8,
-                    padding: "10px 12px",
-                    width: 220,
-                    outline: "none",
-                  }}
+                  style={{ background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "10px 12px", width: 220, outline: "none" }}
                 />
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={tradePrice}
-                  onChange={(e) => setTradePrice(e.target.value)}
+                  type="number" min="0" step="0.01" value={tradePrice} onChange={(e) => setTradePrice(e.target.value)}
                   placeholder="Execution price"
-                  style={{
-                    background: "#060e17",
-                    border: "1px solid #1a2a3a",
-                    color: "#cde",
-                    borderRadius: 8,
-                    padding: "10px 12px",
-                    width: 170,
-                    outline: "none",
-                  }}
+                  style={{ background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "10px 12px", width: 170, outline: "none" }}
                 />
                 <button
                   onClick={() => {
                     const live = Number(todayPrice ?? data?.lastPrice);
                     if (Number.isFinite(live) && live > 0) setTradePrice(live.toFixed(2));
                   }}
-                  style={{
-                    background: "#081321",
-                    color: "#9bb0c4",
-                    border: "1px solid #1a2a3a",
-                    borderRadius: 8,
-                    padding: "9px 12px",
-                    fontSize: 11,
-                    cursor: "pointer",
-                  }}
+                  style={{ background: "#081321", color: "#9bb0c4", border: "1px solid #1a2a3a", borderRadius: 8, padding: "9px 12px", fontSize: 11, cursor: "pointer" }}
                 >
                   Use Today
                 </button>
                 <button
-                  onClick={() => placePaperOrder("buy")}
-                  disabled={paperBusy}
-                  style={{
-                    background: "#0f2a24",
-                    color: "#4ade80",
-                    border: "1px solid #4ade8055",
-                    borderRadius: 8,
-                    padding: "9px 14px",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: paperBusy ? "not-allowed" : "pointer",
-                    opacity: paperBusy ? 0.6 : 1,
-                  }}
+                  onClick={() => handlePlaceOrder("buy")} disabled={paperBusy}
+                  style={{ background: "#0f2a24", color: "#4ade80", border: "1px solid #4ade8055", borderRadius: 8, padding: "9px 14px", fontSize: 12, fontWeight: 700, cursor: paperBusy ? "not-allowed" : "pointer", opacity: paperBusy ? 0.6 : 1 }}
                 >
                   BUY
                 </button>
                 <button
-                  onClick={() => placePaperOrder("sell")}
-                  disabled={paperBusy}
-                  style={{
-                    background: "#2a1218",
-                    color: "#f87171",
-                    border: "1px solid #f8717155",
-                    borderRadius: 8,
-                    padding: "9px 14px",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: paperBusy ? "not-allowed" : "pointer",
-                    opacity: paperBusy ? 0.6 : 1,
-                  }}
+                  onClick={() => handlePlaceOrder("sell")} disabled={paperBusy}
+                  style={{ background: "#2a1218", color: "#f87171", border: "1px solid #f8717155", borderRadius: 8, padding: "9px 14px", fontSize: 12, fontWeight: 700, cursor: paperBusy ? "not-allowed" : "pointer", opacity: paperBusy ? 0.6 : 1 }}
                 >
                   SELL
                 </button>
@@ -1254,10 +411,7 @@ export default function StockDashboard() {
                 Default execution price is today price: <span style={{ color: "#9fe7ff" }}>{formatINR(todayPrice ?? data?.lastPrice)}</span>. You can edit this price before Buy/Sell.
               </div>
               <div style={{ fontSize: 11, color: "#667788" }}>
-                Current holding: {selectedPosition ? `${selectedPosition.quantity} qty` : "0 qty"} ·
-                Position value: {formatINR(selectedPosition?.market_value ?? 0)} ·
-                Unrealized P/L: <span style={{ color: (selectedPosition?.unrealized_pnl ?? 0) >= 0 ? "#4ade80" : "#f87171" }}>{formatINR(selectedPosition?.unrealized_pnl ?? 0)}</span> ·
-                Day P/L (today vs buy avg): <span style={{ color: (selectedPosition?.day_pnl ?? 0) >= 0 ? "#4ade80" : "#f87171" }}>{formatINR(selectedPosition?.day_pnl ?? 0)}</span>
+                Current holding: {selectedPosition ? `${selectedPosition.quantity} qty` : "0 qty"} · Position value: {formatINR(selectedPosition?.market_value ?? 0)} · Unrealized P/L: <span style={{ color: (selectedPosition?.unrealized_pnl ?? 0) >= 0 ? "#4ade80" : "#f87171" }}>{formatINR(selectedPosition?.unrealized_pnl ?? 0)}</span> · Day P/L: <span style={{ color: (selectedPosition?.day_pnl ?? 0) >= 0 ? "#4ade80" : "#f87171" }}>{formatINR(selectedPosition?.day_pnl ?? 0)}</span>
               </div>
             </div>
 
@@ -1273,37 +427,12 @@ export default function StockDashboard() {
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                   <CartesianGrid stroke="#1a2a3a" strokeDasharray="3 3" vertical={false} />
-                  <XAxis
-                    type="number"
-                    dataKey="ts"
-                    scale="time"
-                    domain={["dataMin", "dataMax"]}
-                    tick={{ fill: "#445566", fontSize: 10 }}
-                    tickFormatter={(v) => formatDateLabel(Number(v))}
-                    tickLine={false}
-                    axisLine={false}
-                    minTickGap={28}
-                  />
+                  <XAxis type="number" dataKey="ts" scale="time" domain={["dataMin", "dataMax"]} tick={{ fill: "#445566", fontSize: 10 }} tickFormatter={(v) => formatDateLabel(Number(v))} tickLine={false} axisLine={false} minTickGap={28} />
                   <YAxis tick={{ fill: "#445566", fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatINR(v)} width={68} />
                   <Tooltip content={<CustomTooltip />} />
                   <ReferenceLine x={latestActualTs} stroke="#2a3a4a" strokeDasharray="4 4" label={{ value: "NOW", fill: "#445566", fontSize: 10 }} />
-                  {/* Actual historical line */}
-                  <Line 
-                    type="linear" 
-                    dataKey="actual" 
-                    stroke="#4a9eff" 
-                    strokeWidth={2} 
-                    dot={chartData.length <= 120}
-                    connectNulls={false}
-                  />
-                  <Line
-                    type="linear"
-                    dataKey="predicted"
-                    stroke="#00e5a0"
-                    strokeWidth={2}
-                    dot={chartData.length <= 120}
-                    connectNulls={true}
-                  />
+                  <Line type="linear" dataKey="actual" stroke="#4a9eff" strokeWidth={2} dot={chartData.length <= 120} connectNulls={false} />
+                  <Line type="linear" dataKey="predicted" stroke="#00e5a0" strokeWidth={2} dot={chartData.length <= 120} connectNulls={true} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -1338,9 +467,7 @@ export default function StockDashboard() {
                       <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a", color: "#9bb0c4" }}>{row.dateLabel}</div>
                       <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a", color: "#00e5a0", fontWeight: 600 }}>{formatINR(row.price)}</div>
                       <div style={{ padding: "10px 12px", color: "#7cc8ad" }}>
-                        {Number.isFinite(row.lower) && Number.isFinite(row.upper)
-                          ? `${formatINR(row.lower)} - ${formatINR(row.upper)}`
-                          : "—"}
+                        {Number.isFinite(row.lower) && Number.isFinite(row.upper) ? `${formatINR(row.lower)} - ${formatINR(row.upper)}` : "—"}
                       </div>
                     </div>
                   ))
