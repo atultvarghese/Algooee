@@ -1,14 +1,24 @@
+# Core API & Data
 fastapi
-matplotlib
-pandas
 pydantic
+uvicorn
 python-dotenv
 requests
+
+# Data Science & Machine Learning
+pandas
 scikit-learn
-uvicorn
+matplotlib
+
+# Backtesting & Quantitative 
+vectorbt
+numba          # Required for VectorBT's high-speed C-compiled operations
+plotly         # Required for VectorBT's interactive HTML plotting
+
+# Linting & Formatting
 black>=24.4.2
 ruff>=0.4.4
-pytest>=8.2.0
 
-# for API testing
-httpx>=0.24.0
+# Testing
+pytest>=8.2.0
+httpx>=0.24.0  # for API testing
