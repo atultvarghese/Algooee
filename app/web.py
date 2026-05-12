@@ -6,6 +6,7 @@ from typing import List, Optional
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from app.app import UpstoxClient
@@ -265,6 +266,7 @@ async def predict_stock(request: StockPredictionRequest):
     """
     if not client:
         raise HTTPException(status_code=503, detail="Upstox API client not configured")
+    
     cache_key = (
         f"{request.isin}|{request.start_date}|{request.end_date}|{request.interval}|"
         f"{request.count}|{request.forecast_days}|{request.backtest_days}"
@@ -275,7 +277,7 @@ async def predict_stock(request: StockPredictionRequest):
         return cached["value"]
 
     try:
-        # Fetch historical data
+        # Fetch historical data (Network I/O - fast)
         candles = client.get_historical_candles(
             isin=request.isin,
             start_date=request.start_date,
@@ -291,26 +293,24 @@ async def predict_stock(request: StockPredictionRequest):
             )
 
         # Prepare data
-        headers = [
-            "Timestamp",
-            "Open",
-            "High",
-            "Low",
-            "Close",
-            "Volume",
-            "Open Interest",
-        ]
+        headers = ["Timestamp", "Open", "High", "Low", "Close", "Volume", "Open Interest"]
         df = pd.DataFrame(candles, columns=headers)
 
-        # Train model and predict
+        # --- THE FIX: OFF-LOAD CPU HEAVY ML TASKS TO THREADPOOL ---
         predictor = Prediction(df)
-        predictor.feature_engineering()
-        predictor.train_model()
-        forecast = predictor.predict_next_day()
+        
+        # feature_engineering and train_model are heavy Pandas/Scikit-Learn tasks
+        await run_in_threadpool(predictor.feature_engineering)
+        await run_in_threadpool(predictor.train_model)
+        
         future_days = max(1, min(int(request.forecast_days or 5), 15))
         backtest_days = max(1, min(int(request.backtest_days or 10), 60))
-        future_forecast = predictor.predict_future_days(days=future_days)
-        backtest = predictor.get_backtest_points(limit=backtest_days)
+        
+        # Inference is also synchronous, so we thread it
+        forecast = await run_in_threadpool(predictor.predict_next_day)
+        future_forecast = await run_in_threadpool(predictor.predict_future_days, future_days)
+        backtest = await run_in_threadpool(predictor.get_backtest_points, backtest_days)
+        # ----------------------------------------------------------
 
         # Compatibility fields + richer payload
         predicted_high = float(forecast.get("predicted_high", 0.0))
@@ -331,8 +331,10 @@ async def predict_stock(request: StockPredictionRequest):
             "backtest": backtest,
             "future_forecast": future_forecast,
         }
+        
         PREDICTION_CACHE[cache_key] = {"ts": now_ts, "value": result}
         return result
+        
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Prediction error: {str(e)}")
 
