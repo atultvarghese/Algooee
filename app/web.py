@@ -1,3 +1,5 @@
+import sqlite3
+import json
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -28,6 +30,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+MARKET_DB_PATH = str(Path(__file__).resolve().parents[1] / "market_data.db")
 
 # Request/Response Models
 class StockPredictionRequest(BaseModel):
@@ -252,91 +255,68 @@ async def get_historical_candles(request: StockPredictionRequest):
 @app.post("/api/predict", tags=["Predictions"])
 async def predict_stock(request: StockPredictionRequest):
     """
-    Predict the next day's high price for a stock.
+    Fetch the pre-computed next-day high prediction for a given stock.
+
+    Unlike standard prediction APIs, this endpoint is strictly a fast database 
+    reader (O(1) time complexity). All heavy machine learning operations 
+    (feature engineering, chronological splitting, and Scikit-Learn training) 
+    are offloaded to a nightly batch pipeline to ensure sub-millisecond API responses.
+
+    Safety Mechanisms:
+        - Stale Data Kill Switch: Fails the request if the underlying prediction 
+          is older than 72 hours (gracefully accounting for weekends). This prevents 
+          the UI and automated bots from trading on expired models if the nightly 
+          pipeline fails.
 
     Args:
-        isin: Instrument ISIN code
-        start_date: Start date for historical data
-        end_date: End date for historical data
-        interval: Data interval (default: day)
-        count: Number of intervals (default: 1)
+        request (StockPredictionRequest): Contains the ISIN to query.
 
     Returns:
-        Predicted high price and confidence level
+        dict: The complete predicted payload including future forecasts, 
+              confidence scores, and backtest performance metrics.
     """
-    if not client:
-        raise HTTPException(status_code=503, detail="Upstox API client not configured")
-    
-    cache_key = (
-        f"{request.isin}|{request.start_date}|{request.end_date}|{request.interval}|"
-        f"{request.count}|{request.forecast_days}|{request.backtest_days}"
-    )
-    now_ts = time.time()
-    cached = PREDICTION_CACHE.get(cache_key)
-    if cached and (now_ts - cached["ts"] <= PREDICTION_CACHE_TTL_SECONDS):
-        return cached["value"]
-
     try:
-        # Fetch historical data (Network I/O - fast)
-        candles = client.get_historical_candles(
-            isin=request.isin,
-            start_date=request.start_date,
-            end_date=request.end_date,
-            interval=request.interval,
-            count=request.count,
-        )
+        with sqlite3.connect(MARKET_DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM daily_predictions WHERE isin = ?", 
+                (request.isin,)
+            ).fetchone()
+            
+        if not row:
+            raise HTTPException(status_code=404, detail="No prediction found.")
 
-        if not candles:
+        # --- STALE DATA KILL SWITCH ---
+        # SQLite stores datetime('now') as 'YYYY-MM-DD HH:MM:SS'
+        updated_at = datetime.strptime(row["updated_at"], "%Y-%m-%d %H:%M:%S")
+        
+        # 72 hours gracefully handles Friday night to Monday morning. 
+        # If it's older than this, your nightly script definitely failed.
+        if datetime.utcnow() - updated_at > timedelta(hours=72):
             raise HTTPException(
-                status_code=404,
-                detail="No data found for the given ISIN and date range",
+                status_code=400, 
+                detail="🛑 STALE DATA: Predictions are older than 72 hours. Nightly pipeline failed."
             )
-
-        # Prepare data
-        headers = ["Timestamp", "Open", "High", "Low", "Close", "Volume", "Open Interest"]
-        df = pd.DataFrame(candles, columns=headers)
-
-        # --- THE FIX: OFF-LOAD CPU HEAVY ML TASKS TO THREADPOOL ---
-        predictor = Prediction(df)
-        
-        # feature_engineering and train_model are heavy Pandas/Scikit-Learn tasks
-        await run_in_threadpool(predictor.feature_engineering)
-        await run_in_threadpool(predictor.train_model)
-        
-        future_days = max(1, min(int(request.forecast_days or 5), 15))
-        backtest_days = max(1, min(int(request.backtest_days or 10), 60))
-        
-        # Inference is also synchronous, so we thread it
-        forecast = await run_in_threadpool(predictor.predict_next_day)
-        future_forecast = await run_in_threadpool(predictor.predict_future_days, future_days)
-        backtest = await run_in_threadpool(predictor.get_backtest_points, backtest_days)
-        # ----------------------------------------------------------
-
-        # Compatibility fields + richer payload
-        predicted_high = float(forecast.get("predicted_high", 0.0))
-        mae = float(forecast.get("mae", 0.0))
-        mape = float(forecast.get("mape", 0.0))
-        error_ratio = mae / max(abs(predicted_high), 1.0)
-        confidence = "high" if (mape <= 2.0 and error_ratio <= 0.02) else "moderate"
+        # ------------------------------
 
         result = {
-            "isin": request.isin,
-            "predicted_high": predicted_high,
-            "p10": float(forecast.get("p10", predicted_high)),
-            "p90": float(forecast.get("p90", predicted_high)),
-            "mae": mae,
-            "mape": mape,
-            "confidence": confidence,
-            "forecast": forecast,
-            "backtest": backtest,
-            "future_forecast": future_forecast,
+            "isin": row["isin"],
+            "predicted_high": float(row["predicted_high"]),
+            "p10": float(row["p10"]),
+            "p90": float(row["p90"]),
+            "mae": float(row["mae"]),
+            "mape": float(row["mape"]),
+            "confidence": row["confidence"],
+            "forecast": json.loads(row["forecast_json"]),
+            "backtest": json.loads(row["backtest_json"]),
+            "future_forecast": json.loads(row["future_forecast_json"]),
         }
-        
-        PREDICTION_CACHE[cache_key] = {"ts": now_ts, "value": result}
         return result
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Prediction error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Database read error: {str(e)}")
 
 
 @app.get("/api/stocks", tags=["Reference"])
