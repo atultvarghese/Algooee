@@ -54,3 +54,35 @@ class UpstoxClient:
 
         data = self._make_request(endpoint)
         return data.get("data", {}).get("candles", [])
+
+    def get_ltp_quote(self, isin, exchange="NSE_EQ"):
+        """
+        Fetch latest traded price quote for a given ISIN.
+        :param isin: Instrument ISIN code
+        :param exchange: Exchange type (default NSE_EQ)
+        :return: Quote payload with last_price and previous close when available
+        """
+        instrument_key = f"{exchange}|{isin}"
+        data = self._make_request(
+            "/market-quote/ltp",
+            params={"instrument_key": instrument_key},
+        )
+        quote_map = data.get("data", {})
+        if not quote_map:
+            return {}
+        return next(iter(quote_map.values()))
+
+    def get_intraday_candles(self, isin, interval="minutes", count=1, exchange="NSE_EQ"):
+        """
+        Fetch current trading day intraday candles for a given ISIN.
+        :param isin: Instrument ISIN code
+        :param interval: Candle interval unit (minutes, hours, days)
+        :param count: Number of interval units
+        :param exchange: Exchange type (default NSE_EQ)
+        :return: List of intraday candles (if successful)
+        """
+        encoded_symbol = f"{exchange}%7C{isin}"
+        endpoint = f"/historical-candle/intraday/{encoded_symbol}/{interval}/{count}"
+
+        data = self._make_request(endpoint)
+        return data.get("data", {}).get("candles", [])
