@@ -457,21 +457,26 @@ async def predict_stock(request: StockPredictionRequest):
         df = pd.DataFrame(candles, columns=headers)
 
         # Train model and predict
+        future_days = max(1, min(int(request.forecast_days or 5), 15))
+        backtest_days = max(8, min(int(request.backtest_days or 30), 60))
         predictor = Prediction(df)
         predictor.feature_engineering()
-        predictor.train_model()
+        predictor.train_model(backtest_points=backtest_days)
         forecast = predictor.predict_next_day()
-        future_days = max(1, min(int(request.forecast_days or 5), 15))
-        backtest_days = max(1, min(int(request.backtest_days or 10), 60))
         future_forecast = predictor.predict_future_days(days=future_days)
         backtest = predictor.get_backtest_points(limit=backtest_days)
+        backtest_summary = predictor.get_backtest_summary()
+        diagnostics = predictor.get_diagnostics()
+        signal = predictor.get_signal_snapshot(forecast)
 
         # Compatibility fields + richer payload
         predicted_high = float(forecast.get("predicted_high", 0.0))
         mae = float(forecast.get("mae", 0.0))
         mape = float(forecast.get("mape", 0.0))
-        error_ratio = mae / max(abs(predicted_high), 1.0)
-        confidence = "high" if (mape <= 2.0 and error_ratio <= 0.02) else "moderate"
+        confidence = round(predictor.confidence_score(), 2)
+        confidence_label = (
+            "high" if confidence >= 75 else "moderate" if confidence >= 55 else "low"
+        )
 
         result = {
             "isin": request.isin,
@@ -480,10 +485,17 @@ async def predict_stock(request: StockPredictionRequest):
             "p90": float(forecast.get("p90", predicted_high)),
             "mae": mae,
             "mape": mape,
+            "rmse": float(forecast.get("rmse", 0.0)),
+            "bias": float(forecast.get("bias", 0.0)),
             "confidence": confidence,
+            "confidence_label": confidence_label,
             "forecast": forecast,
             "backtest": backtest,
+            "backtest_summary": backtest_summary,
+            "diagnostics": diagnostics,
             "future_forecast": future_forecast,
+            "model_version": "walk_forward_ensemble_v2",
+            **signal,
         }
         PREDICTION_CACHE[cache_key] = {"ts": now_ts, "value": result}
         return result

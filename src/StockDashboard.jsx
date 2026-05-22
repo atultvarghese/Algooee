@@ -89,9 +89,14 @@ export default function StockDashboard() {
   const chartBacktest = data?.backtest ? data.backtest.slice(-10) : [];
   const chartFuture = data?.predicted ? data.predicted.slice(0, 5) : [];
   const forecastRows = data?.predicted ? data.predicted.slice(0, 5) : [];
-  const avgBacktestAbsError = (data?.backtest?.length || 0) > 0
+  const summary = data?.backtestSummary || {};
+  const avgBacktestAbsError = Number.isFinite(summary.mae) ? summary.mae : (data?.backtest?.length || 0) > 0
     ? data.backtest.reduce((sum, row) => sum + Math.abs((row.actual ?? 0) - (row.predicted ?? 0)), 0) / data.backtest.length
     : NaN;
+  const backtestRows = data?.backtest ? data.backtest.slice(-8).reverse() : [];
+  const modelEdgePct = Number(summary.modelEdgePct);
+  const directionalAccuracy = Number(summary.directionalAccuracy);
+  const intervalCoverage = Number(summary.intervalCoverage);
 
   const chartMap = new Map();
   chartActualHistory.forEach((row) => {
@@ -100,6 +105,8 @@ export default function StockDashboard() {
   chartBacktest.forEach((row) => {
     const existing = chartMap.get(row.ts) || { ts: row.ts, dateLabel: row.dateLabel, actual: null, predicted: null, lower: null, upper: null };
     existing.predicted = row.predicted;
+    existing.lower = Number.isFinite(row.lower) ? row.lower : existing.lower;
+    existing.upper = Number.isFinite(row.upper) ? row.upper : existing.upper;
     if (existing.actual === null && Number.isFinite(row.actual)) {
       existing.actual = row.actual;
     }
@@ -422,6 +429,7 @@ export default function StockDashboard() {
                 <div style={{ display: "flex", gap: 16, fontSize: 11 }}>
                   <span style={{ color: "#4a9eff" }}>── Actual</span>
                   <span style={{ color: "#00e5a0" }}>── Predicted</span>
+                  <span style={{ color: "#7cc8ad" }}>·· Range</span>
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={260}>
@@ -431,8 +439,10 @@ export default function StockDashboard() {
                   <YAxis tick={{ fill: "#445566", fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatINR(v)} width={68} />
                   <Tooltip content={<CustomTooltip />} />
                   <ReferenceLine x={latestActualTs} stroke="#2a3a4a" strokeDasharray="4 4" label={{ value: "NOW", fill: "#445566", fontSize: 10 }} />
+                  <Line type="linear" dataKey="upper" stroke="#7cc8ad" strokeWidth={1} strokeDasharray="4 4" dot={false} connectNulls={true} />
                   <Line type="linear" dataKey="actual" stroke="#4a9eff" strokeWidth={2} dot={chartData.length <= 120} connectNulls={false} />
                   <Line type="linear" dataKey="predicted" stroke="#00e5a0" strokeWidth={2} dot={chartData.length <= 120} connectNulls={true} />
+                  <Line type="linear" dataKey="lower" stroke="#7cc8ad" strokeWidth={1} strokeDasharray="4 4" dot={false} connectNulls={true} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -440,12 +450,14 @@ export default function StockDashboard() {
             {/* Prediction Details */}
             <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: 20, marginBottom: 20 }}>
               <div style={{ fontSize: 10, color: "#445566", letterSpacing: 2, marginBottom: 14 }}>PREDICTION DETAILS</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 12, marginBottom: 16 }}>
                 {[
                   { label: "Next Day Range", value: `${formatINR(data.p10)} - ${formatINR(data.p90)}`, note: "p10 to p90" },
-                  { label: "Model MAE", value: formatINR(data.mae), note: "Average absolute error" },
-                  { label: "Model MAPE", value: formatPercent(data.mape), note: "Average percentage error" },
-                  { label: "Backtest Error", value: formatINR(avgBacktestAbsError), note: "Avg |actual - predicted|" },
+                  { label: "Backtest MAE", value: formatINR(avgBacktestAbsError), note: `${summary.rows || backtestRows.length || 0} walk-forward rows` },
+                  { label: "Backtest MAPE", value: formatPercent(summary.mape ?? data.mape), note: "Mean absolute %" },
+                  { label: "Direction Hit", value: formatPercent(directionalAccuracy, 1), note: "High vs prior high" },
+                  { label: "Range Cover", value: formatPercent(intervalCoverage, 1), note: "Actual inside range" },
+                  { label: "Model Edge", value: formatPercent(modelEdgePct, 1), note: "vs simple baseline" },
                 ].map((metric) => (
                   <div key={metric.label} style={{ background: "#060e17", border: "1px solid #1a2a3a", borderRadius: 8, padding: "12px 14px" }}>
                     <div style={{ fontSize: 10, color: "#445566", letterSpacing: 1, marginBottom: 6 }}>{metric.label}</div>
@@ -475,6 +487,33 @@ export default function StockDashboard() {
                   <div style={{ padding: "12px", color: "#556677", fontSize: 12 }}>No forecast data available.</div>
                 )}
               </div>
+
+              <div style={{ border: "1px solid #1a2a3a", borderRadius: 8, overflow: "hidden", marginTop: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 0.8fr", gap: 0, background: "#081321", color: "#667788", fontSize: 10, letterSpacing: 1, textTransform: "uppercase" }}>
+                  <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a" }}>Backtest</div>
+                  <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a" }}>Actual</div>
+                  <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a" }}>Predicted</div>
+                  <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a" }}>Error</div>
+                  <div style={{ padding: "10px 12px" }}>Hit</div>
+                </div>
+                {backtestRows.length ? (
+                  backtestRows.map((row) => (
+                    <div key={`bt-${row.ts}`} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 0.8fr", gap: 0, borderTop: "1px solid #1a2a3a", fontSize: 12 }}>
+                      <div style={{ padding: "9px 12px", borderRight: "1px solid #1a2a3a", color: "#9bb0c4" }}>{row.dateLabel}</div>
+                      <div style={{ padding: "9px 12px", borderRight: "1px solid #1a2a3a", color: "#4a9eff" }}>{formatINR(row.actual)}</div>
+                      <div style={{ padding: "9px 12px", borderRight: "1px solid #1a2a3a", color: "#00e5a0" }}>{formatINR(row.predicted)}</div>
+                      <div style={{ padding: "9px 12px", borderRight: "1px solid #1a2a3a", color: "#facc15" }}>
+                        {formatINR(row.absError)} {Number.isFinite(row.errorPct) ? `(${formatPercent(row.errorPct, 1)})` : ""}
+                      </div>
+                      <div style={{ padding: "9px 12px", color: row.directionalHit ? "#4ade80" : "#f87171", fontWeight: 700 }}>
+                        {row.directionalHit ? "YES" : "NO"}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ padding: "12px", color: "#556677", fontSize: 12 }}>No backtest data available.</div>
+                )}
+              </div>
             </div>
 
             {/* Stats row */}
@@ -487,9 +526,9 @@ export default function StockDashboard() {
                 </div>
                 <div style={{ fontSize: 11, color: "#556677", marginBottom: 6 }}>Strength</div>
                 <div style={{ height: 6, background: "#1e2d3d", borderRadius: 3 }}>
-                  <div style={{ width: `${data.trendStrength}%`, height: "100%", background: trendColor, borderRadius: 3, transition: "width 0.8s" }} />
+                  <div style={{ width: `${Math.max(0, Math.min(100, Number(data.trendStrength) || 0))}%`, height: "100%", background: trendColor, borderRadius: 3, transition: "width 0.8s" }} />
                 </div>
-                <div style={{ textAlign: "right", fontSize: 12, color: trendColor, marginTop: 3 }}>{data.trendStrength}%</div>
+                <div style={{ textAlign: "right", fontSize: 12, color: trendColor, marginTop: 3 }}>{Math.round(Number(data.trendStrength) || 0)}%</div>
               </div>
 
               {/* Risk */}
@@ -507,7 +546,7 @@ export default function StockDashboard() {
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginTop: 8 }}>
                   <ConfidenceRing value={data.confidence} />
                   <div>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: "#00e5a0", fontFamily: "'Space Mono', monospace" }}>{data.confidence}%</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: "#00e5a0", fontFamily: "'Space Mono', monospace" }}>{Math.round(Number(data.confidence) || 0)}%</div>
                     <div style={{ fontSize: 11, color: "#445566", marginTop: 4 }}>Prediction confidence</div>
                     <div style={{ fontSize: 11, color: data.confidence > 75 ? "#4ade80" : data.confidence > 55 ? "#facc15" : "#f87171", marginTop: 2 }}>
                       {data.confidence > 75 ? "● High confidence" : data.confidence > 55 ? "● Moderate" : "● Low confidence"}
