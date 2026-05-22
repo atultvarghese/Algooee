@@ -1,5 +1,6 @@
+import math
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
 
@@ -77,21 +78,24 @@ PAPER_STORE = PaperTradeStore(str(Path(__file__).resolve().parents[1] / "paper_t
 # Simple in-memory cache for expensive prediction calls
 PREDICTION_CACHE = {}
 PREDICTION_CACHE_TTL_SECONDS = 300
+MARKET_TZ = timezone(timedelta(hours=5, minutes=30))
 
 
-def _fetch_latest_and_prev_close(isin: str):
-    """Fetch latest close and previous close for day-over-day P/L."""
+def _market_now():
+    return datetime.now(MARKET_TZ)
+
+
+def _fetch_close_snapshot(isin: str, start_date, end_date, interval: str):
+    """Fetch latest and previous closes for one candle interval."""
     if not client:
         return None, None, None
 
     try:
-        end_date = datetime.utcnow().date()
-        start_date = end_date - timedelta(days=20)
         candles = client.get_historical_candles(
             isin=isin,
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
-            interval="day",
+            interval=interval,
             count=1,
         )
     except Exception:
@@ -113,8 +117,123 @@ def _fetch_latest_and_prev_close(isin: str):
     df.sort_values("Timestamp", inplace=True)
     latest_close = float(df["Close"].iloc[-1])
     prev_close = float(df["Close"].iloc[-2]) if len(df) >= 2 else latest_close
-    as_of = df["Timestamp"].iloc[-1].strftime("%Y-%m-%d")
+    as_of_format = "%Y-%m-%d %H:%M" if interval == "minute" else "%Y-%m-%d"
+    as_of = df["Timestamp"].iloc[-1].strftime(as_of_format)
     return latest_close, prev_close, as_of
+
+
+def _to_float_or_none(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _fetch_ltp_snapshot(isin: str):
+    """Fetch current last traded price and previous close from market quote."""
+    if not client:
+        return None, None, None
+
+    try:
+        quote = client.get_ltp_quote(isin=isin)
+    except Exception:
+        return None, None, None
+
+    last_price = _to_float_or_none(quote.get("last_price"))
+    prev_close = _to_float_or_none(quote.get("cp"))
+    if last_price is None:
+        return None, None, None
+
+    as_of = _market_now().strftime("%Y-%m-%d %H:%M")
+    return last_price, prev_close, as_of
+
+
+def _parse_candle_snapshot(candles, interval: str):
+    if not candles:
+        return None, None, None
+
+    headers = ["Timestamp", "Open", "High", "Low", "Close", "Volume", "Open Interest"]
+    df = pd.DataFrame(candles, columns=headers)
+    if df.empty:
+        return None, None, None
+
+    df["Timestamp"] = pd.to_datetime(df["Timestamp"], errors="coerce")
+    df["Close"] = pd.to_numeric(df["Close"], errors="coerce")
+    df.dropna(subset=["Timestamp", "Close"], inplace=True)
+    if df.empty:
+        return None, None, None
+
+    df.sort_values("Timestamp", inplace=True)
+    latest_close = float(df["Close"].iloc[-1])
+    prev_close = float(df["Close"].iloc[-2]) if len(df) >= 2 else latest_close
+    as_of_format = "%Y-%m-%d %H:%M" if interval == "minute" else "%Y-%m-%d"
+    as_of = df["Timestamp"].iloc[-1].strftime(as_of_format)
+    return latest_close, prev_close, as_of
+
+
+def _fetch_intraday_snapshot(isin: str):
+    """Fetch current trading day latest 1-minute candle."""
+    if not client:
+        return None, None, None
+
+    try:
+        candles = client.get_intraday_candles(isin=isin, interval="minutes", count=1)
+    except Exception:
+        return None, None, None
+
+    return _parse_candle_snapshot(candles, "minute")
+
+
+def _fetch_latest_and_prev_close(isin: str):
+    """Fetch live current price and daily previous close for P/L."""
+    if not client:
+        return None, None, None
+
+    end_date = _market_now().date()
+    daily_start_date = end_date - timedelta(days=20)
+    minute_start_date = end_date - timedelta(days=5)
+
+    ltp_price, ltp_prev_close, ltp_as_of = _fetch_ltp_snapshot(isin)
+    if ltp_price is not None and ltp_prev_close is not None:
+        return ltp_price, ltp_prev_close, ltp_as_of
+
+    daily_close, daily_prev_close, daily_as_of = _fetch_close_snapshot(
+        isin=isin,
+        start_date=daily_start_date,
+        end_date=end_date,
+        interval="day",
+    )
+    if ltp_price is not None:
+        prev_close = daily_prev_close if daily_prev_close is not None else daily_close
+        return ltp_price, prev_close, ltp_as_of
+
+    intraday_close, _, intraday_as_of = _fetch_intraday_snapshot(isin)
+    if intraday_close is not None:
+        prev_close = daily_close if daily_close is not None else intraday_close
+        return intraday_close, prev_close, intraday_as_of
+
+    minute_close, _, minute_as_of = _fetch_close_snapshot(
+        isin=isin,
+        start_date=minute_start_date,
+        end_date=end_date,
+        interval="minute",
+    )
+
+    if minute_close is None:
+        prev_close = daily_prev_close if daily_prev_close is not None else daily_close
+        return daily_close, prev_close, daily_as_of
+
+    minute_date = minute_as_of[:10] if minute_as_of else None
+    daily_date = daily_as_of[:10] if daily_as_of else None
+    if daily_close is None:
+        prev_close = minute_close
+    elif minute_date and daily_date and minute_date == daily_date:
+        prev_close = daily_prev_close if daily_prev_close is not None else daily_close
+    else:
+        prev_close = daily_close
+
+    return minute_close, prev_close, minute_as_of
 
 
 def _build_paper_portfolio_snapshot():
@@ -144,7 +263,7 @@ def _build_paper_portfolio_snapshot():
         cost_value = qty * avg_price
         current_value = qty * mark_price
         position_unrealized = current_value - cost_value
-        position_day_pnl = qty * (mark_price - avg_price)
+        position_day_pnl = qty * (mark_price - prev_price)
 
         invested_cost += cost_value
         market_value += current_value
@@ -246,6 +365,41 @@ async def get_historical_candles(request: StockPredictionRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error fetching candles: {str(e)}")
+
+
+@app.get("/api/market-quote/ltp/{isin}", tags=["Stock Data"])
+async def get_ltp_quote(isin: str):
+    """Fetch current last traded price for a stock."""
+    if not client:
+        raise HTTPException(status_code=503, detail="Upstox API client not configured")
+
+    price, prev_close, as_of = _fetch_ltp_snapshot(isin)
+    source = "ltp"
+    if price is None:
+        daily_close, _, _ = _fetch_close_snapshot(
+            isin=isin,
+            start_date=_market_now().date() - timedelta(days=20),
+            end_date=_market_now().date(),
+            interval="day",
+        )
+        price, _, as_of = _fetch_intraday_snapshot(isin)
+        prev_close = daily_close if daily_close is not None else price
+        source = "intraday"
+
+    if price is None:
+        price, prev_close, as_of = _fetch_latest_and_prev_close(isin)
+        source = "historical_candle"
+
+    if price is None:
+        raise HTTPException(status_code=404, detail="No current price found for this ISIN")
+
+    return {
+        "isin": isin,
+        "last_price": round(price, 4),
+        "prev_close": round(prev_close, 4) if prev_close is not None else None,
+        "timestamp": as_of,
+        "source": source,
+    }
 
 
 @app.post("/api/predict", tags=["Predictions"])

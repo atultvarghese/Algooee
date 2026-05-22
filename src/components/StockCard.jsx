@@ -5,7 +5,7 @@ export default function StockCard({ ticker, selected, data, onClick, onRemove, n
   if (!data && !meta) return null;
   const up = (data?.changePct ?? 0) >= 0;
   const displayName = name || data?.name || ticker;
-  const displayLast = meta?.last_price ?? data?.lastPrice ?? "—";
+  const displayLast = data?.lastPrice ?? meta?.last_price ?? "—";
   return (
     <div onClick={onClick} style={{
       background: selected ? "linear-gradient(135deg, #0d2236 0%, #0f2940 100%)" : "#0a1520",

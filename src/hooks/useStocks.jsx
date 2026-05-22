@@ -14,6 +14,60 @@ export default function useStocks() {
   const [stockNotice, setStockNotice] = useState("");
   const [stockError, setStockError] = useState("");
 
+  function formatLocalDate(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  async function fetchCurrentPrice(isin) {
+    try {
+      const currentResp = await fetch(`${API_BASE}/api/market-quote/ltp/${encodeURIComponent(isin)}`, { cache: "no-store" });
+      if (currentResp.ok) {
+        const currentJson = await currentResp.json();
+        const currentPrice = Number(currentJson.last_price);
+        if (Number.isFinite(currentPrice)) return currentPrice;
+      }
+    } catch (currentErr) {
+      console.warn(`Current LTP fetch error for ${isin}:`, currentErr);
+    }
+
+    try {
+      const end = new Date();
+      const currentStart = new Date();
+      currentStart.setDate(end.getDate() - 5);
+      const currentResp = await fetch(`${API_BASE}/api/historical-candles`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isin, start_date: formatLocalDate(currentStart), end_date: formatLocalDate(end), interval: "minute", count: 1 }),
+      });
+      if (currentResp.ok) {
+        const currentJson = await currentResp.json();
+        const latestMinute = getCandleRows(currentJson)
+          .map((row, idx) => {
+            const { ts, price } = extractCandlePoint(row);
+            if (!Number.isFinite(price)) return null;
+            return { idx, ts, price };
+          })
+          .filter(Boolean)
+          .sort((a, b) => {
+            if (a.ts === null && b.ts === null) return a.idx - b.idx;
+            if (a.ts === null) return 1;
+            if (b.ts === null) return -1;
+            return a.ts - b.ts;
+          })
+          .at(-1);
+        const currentPrice = Number(latestMinute?.price);
+        if (Number.isFinite(currentPrice)) return currentPrice;
+      }
+    } catch (currentErr) {
+      console.warn(`Current minute price fetch error for ${isin}:`, currentErr);
+    }
+
+    return NaN;
+  }
+
   async function fetchWatchlistStocks() {
     try {
       const res = await fetch(`${API_BASE}/api/stocks`);
@@ -120,15 +174,16 @@ export default function useStocks() {
       const end = new Date();
       const start = new Date();
       start.setDate(end.getDate() - 180);
-      const fmt = d => d.toISOString().slice(0, 10);
 
       const histResp = await fetch(`${API_BASE}/api/historical-candles`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isin, start_date: fmt(start), end_date: fmt(end), interval: 'day', count: 1 })
+        body: JSON.stringify({ isin, start_date: formatLocalDate(start), end_date: formatLocalDate(end), interval: 'day', count: 1 })
       });
       if (!histResp.ok) throw new Error(`History fetch failed: ${histResp.status}`);
       const histJson = await histResp.json();
+
+      const currentPrice = await fetchCurrentPrice(isin);
 
       const candleRows = getCandleRows(histJson);
       const rawHistory = candleRows
@@ -160,7 +215,7 @@ export default function useStocks() {
         const predResp = await fetch(`${API_BASE}/api/predict`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isin, start_date: fmt(start), end_date: fmt(end), interval: "day", count: 1, forecast_days: 5, backtest_days: 20 }),
+          body: JSON.stringify({ isin, start_date: formatLocalDate(start), end_date: formatLocalDate(end), interval: "day", count: 1, forecast_days: 5, backtest_days: 20 }),
         });
         if (predResp.ok) predJson = await predResp.json();
       } catch (predErr) { console.warn(`Predict fetch error for ${ticker}:`, predErr); }
@@ -169,7 +224,8 @@ export default function useStocks() {
       const predictedHigh = Number(predictionContainer?.predicted_high ?? predJson?.predicted_high);
       const intervalLow = Number(predictionContainer?.p10 ?? predJson?.p10);
       const intervalHigh = Number(predictionContainer?.p90 ?? predJson?.p90);
-      const lastPrice = history.length ? history[history.length - 1].price : Number.isFinite(predictedHigh) ? predictedHigh : 0;
+      const dailyLastPrice = history.length ? history[history.length - 1].price : NaN;
+      const lastPrice = Number.isFinite(currentPrice) ? currentPrice : Number.isFinite(dailyLastPrice) ? dailyLastPrice : Number.isFinite(predictedHigh) ? predictedHigh : 0;
       const baseTs = history.length ? history[history.length - 1].ts : Date.now();
 
       const futureForecast = (predJson.future_forecast || [])
@@ -251,6 +307,44 @@ export default function useStocks() {
 
   useEffect(() => { fetchWatchlistStocks(); }, []);
   useEffect(() => { loadStock(selected); }, [selected]);
+  useEffect(() => {
+    if (!selected) return undefined;
+
+    let cancelled = false;
+    const refreshSelectedPrice = async () => {
+      const currentPrice = await fetchCurrentPrice(selected);
+      if (cancelled || !Number.isFinite(currentPrice)) return;
+
+      setStockData((prev) => {
+        const existing = prev[selected];
+        if (!existing) return prev;
+
+        const roundedPrice = +currentPrice.toFixed(2);
+        const firstHistoryPrice = existing.history?.[0]?.price;
+        const change = Number.isFinite(firstHistoryPrice) ? +(roundedPrice - firstHistoryPrice).toFixed(2) : existing.change;
+        const changePct = Number.isFinite(firstHistoryPrice) && firstHistoryPrice !== 0
+          ? +(((roundedPrice - firstHistoryPrice) / firstHistoryPrice) * 100).toFixed(2)
+          : existing.changePct;
+
+        return {
+          ...prev,
+          [selected]: {
+            ...existing,
+            lastPrice: roundedPrice,
+            change,
+            changePct,
+          },
+        };
+      });
+    };
+
+    refreshSelectedPrice();
+    const timer = setInterval(refreshSelectedPrice, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [selected]);
 
   return {
     stocks, selected, setSelected, stockData, loading, remoteStocks,

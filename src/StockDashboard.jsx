@@ -35,7 +35,7 @@ export default function StockDashboard() {
   // Derived Values
   const data = stockData[selected];
   const meta = (remoteStocks || stocks).find(s => s.ticker === selected) || {};
-  const todayPrice = meta.last_price ?? data?.lastPrice ?? null;
+  const todayPrice = data?.lastPrice ?? meta.last_price ?? null;
   const predictedVal = data?.predicted?.[0]?.price ?? null;
 
   useEffect(() => {
