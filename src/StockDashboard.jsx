@@ -87,8 +87,8 @@ export default function StockDashboard() {
   
   const chartActualHistory = data?.history ? data.history.slice(-10) : [];
   const chartBacktest = data?.backtest ? data.backtest.slice(-10) : [];
-  const chartFuture = data?.predicted ? data.predicted.slice(0, 5) : [];
-  const forecastRows = data?.predicted ? data.predicted.slice(0, 5) : [];
+  const chartFuture = data?.predicted ? data.predicted.slice(0, 1) : [];
+  const forecastRows = data?.predicted ? data.predicted.slice(0, 1) : [];
   const summary = data?.backtestSummary || {};
   const avgBacktestAbsError = Number.isFinite(summary.mae) ? summary.mae : (data?.backtest?.length || 0) > 0
     ? data.backtest.reduce((sum, row) => sum + Math.abs((row.actual ?? 0) - (row.predicted ?? 0)), 0) / data.backtest.length
@@ -425,7 +425,7 @@ export default function StockDashboard() {
             {/* Chart */}
             <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: "20px 16px", marginBottom: 20 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, paddingRight: 8 }}>
-                <span style={{ fontSize: 12, color: "#667788", letterSpacing: 1 }}>LAST 10 DAYS + NEXT 5 DAYS · ACTUAL & PREDICTED</span>
+                <span style={{ fontSize: 12, color: "#667788", letterSpacing: 1 }}>LAST 10 DAYS + NEXT 1 DAY · ACTUAL & PREDICTED</span>
                 <div style={{ display: "flex", gap: 16, fontSize: 11 }}>
                   <span style={{ color: "#4a9eff" }}>── Actual</span>
                   <span style={{ color: "#00e5a0" }}>── Predicted</span>

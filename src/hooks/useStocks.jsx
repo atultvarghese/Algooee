@@ -215,7 +215,7 @@ export default function useStocks() {
         const predResp = await fetch(`${API_BASE}/api/predict`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isin, start_date: formatLocalDate(start), end_date: formatLocalDate(end), interval: "day", count: 1, forecast_days: 5, backtest_days: 30 }),
+          body: JSON.stringify({ isin, start_date: formatLocalDate(start), end_date: formatLocalDate(end), interval: "day", count: 1, forecast_days: 1, backtest_days: 30 }),
         });
         if (predResp.ok) predJson = await predResp.json();
       } catch (predErr) { console.warn(`Predict fetch error for ${ticker}:`, predErr); }
@@ -241,7 +241,7 @@ export default function useStocks() {
         })
         .filter(Boolean)
         .sort((a, b) => a.ts - b.ts)
-        .slice(0, 5);
+        .slice(0, 1);
 
       let predicted = futureForecast;
       if (!predicted.length && Number.isFinite(predictedHigh)) {

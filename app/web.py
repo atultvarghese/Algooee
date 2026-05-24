@@ -36,7 +36,7 @@ class StockPredictionRequest(BaseModel):
     end_date: str
     interval: str = "day"
     count: int = 1
-    forecast_days: int = 5
+    forecast_days: int = 1
     backtest_days: int = 10
 
 
@@ -457,7 +457,7 @@ async def predict_stock(request: StockPredictionRequest):
         df = pd.DataFrame(candles, columns=headers)
 
         # Train model and predict
-        future_days = max(1, min(int(request.forecast_days or 5), 15))
+        future_days = max(1, min(int(request.forecast_days or 1), 15))
         backtest_days = max(8, min(int(request.backtest_days or 30), 60))
         predictor = Prediction(df)
         predictor.feature_engineering()

@@ -531,7 +531,7 @@ class Prediction:
         )
         return result
 
-    def predict_future_days(self, days: int = 5):
+    def predict_future_days(self, days: int = 1):
         """
         Forecast next N trading days by rolling the ensemble forward.
         Uses model outputs to synthesize a conservative candle path for feature updates.
