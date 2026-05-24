@@ -284,6 +284,7 @@ def _build_paper_portfolio_snapshot():
                 "market_value": round(current_value, 2),
                 "unrealized_pnl": round(position_unrealized, 2),
                 "day_pnl": round(position_day_pnl, 2),
+                "updated_at": holding["updated_at"],
             }
         )
 
