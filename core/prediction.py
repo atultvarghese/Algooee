@@ -433,10 +433,11 @@ class Prediction:
         abs_errors = residuals.abs()
         self.last_mae = float(abs_errors.mean())
         self.last_rmse = float(
-            mean_squared_error(
-                self.backtest_df["actual_high"],
-                self.backtest_df["predicted_high"],
-                squared=False,
+            math.sqrt(
+                mean_squared_error(
+                    self.backtest_df["actual_high"],
+                    self.backtest_df["predicted_high"],
+                )
             )
         )
         denom = np.maximum(np.abs(self.backtest_df["actual_high"].values.astype(float)), 1e-8)
