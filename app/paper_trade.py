@@ -45,11 +45,18 @@ class PaperTradeStore:
                     updated_at TEXT NOT NULL
                 )
                 """)
+            # If old schema table exists without 'id', we recreate it
+            cursor = conn.execute("PRAGMA table_info(holdings)")
+            columns = [row["name"] for row in cursor.fetchall()]
+            if columns and "id" not in columns:
+                conn.execute("DROP TABLE IF EXISTS holdings")
+
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS holdings (
-                    isin TEXT PRIMARY KEY,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    isin TEXT NOT NULL,
                     quantity REAL NOT NULL,
-                    avg_price REAL NOT NULL,
+                    price REAL NOT NULL,
                     updated_at TEXT NOT NULL
                 )
                 """)
@@ -163,9 +170,9 @@ class PaperTradeStore:
     def list_holdings(self) -> List[Dict]:
         with self._connect() as conn:
             rows = conn.execute("""
-                SELECT isin, quantity, avg_price, updated_at
+                SELECT id, isin, quantity, price AS avg_price, updated_at
                 FROM holdings
-                ORDER BY isin ASC
+                ORDER BY updated_at ASC
                 """).fetchall()
             return [dict(row) for row in rows]
 
@@ -252,12 +259,13 @@ class PaperTradeStore:
                     "SELECT cash_balance FROM wallet WHERE id = 1"
                 ).fetchone()
                 cash_balance = float(wallet_row["cash_balance"] if wallet_row else 0.0)
-                holding_row = conn.execute(
-                    "SELECT quantity, avg_price FROM holdings WHERE isin = ?",
+                
+                # Fetch all individual holdings for this ISIN, sorted oldest first
+                holding_rows = conn.execute(
+                    "SELECT id, quantity, price FROM holdings WHERE isin = ? ORDER BY id ASC",
                     (isin,),
-                ).fetchone()
-                current_qty = float(holding_row["quantity"] if holding_row else 0.0)
-                current_avg = float(holding_row["avg_price"] if holding_row else 0.0)
+                ).fetchall()
+                total_qty = sum(float(row["quantity"]) for row in holding_rows)
 
                 quantity = float(amount) / float(price)
                 gross_value = float(quantity * price)
@@ -267,22 +275,43 @@ class PaperTradeStore:
                     if cash_balance + 1e-9 < gross_value:
                         raise ValueError("Insufficient cash balance for this buy order.")
                     new_cash = cash_balance - gross_value
-                    new_qty = current_qty + quantity
-                    new_avg = (
-                        ((current_qty * current_avg) + (quantity * price)) / new_qty
-                        if new_qty > 0
-                        else 0.0
+                    
+                    # Insert a new individual holding row
+                    conn.execute(
+                        """
+                        INSERT INTO holdings (isin, quantity, price, updated_at)
+                        VALUES (?, ?, ?, datetime('now'))
+                        """,
+                        (isin, quantity, float(price)),
                     )
                 else:
-                    if current_qty <= 0:
+                    if total_qty <= 0:
                         raise ValueError("No holdings available to sell.")
-                    if quantity > current_qty + 1e-9:
+                    if quantity > total_qty + 1e-9:
                         raise ValueError("Sell amount exceeds available holdings value.")
 
                     new_cash = cash_balance + gross_value
-                    new_qty = max(0.0, current_qty - quantity)
-                    new_avg = current_avg if new_qty > 0 else 0.0
-                    realized_pnl = (price - current_avg) * quantity
+                    
+                    # FIFO inventory reduction
+                    remaining_sell = quantity
+                    for h_row in holding_rows:
+                        h_id = h_row["id"]
+                        h_qty = float(h_row["quantity"])
+                        h_price = float(h_row["price"])
+                        
+                        if h_qty <= remaining_sell + 1e-9:
+                            realized_pnl += (float(price) - h_price) * h_qty
+                            remaining_sell -= h_qty
+                            conn.execute("DELETE FROM holdings WHERE id = ?", (h_id,))
+                        else:
+                            realized_pnl += (float(price) - h_price) * remaining_sell
+                            new_h_qty = h_qty - remaining_sell
+                            conn.execute(
+                                "UPDATE holdings SET quantity = ? WHERE id = ?",
+                                (new_h_qty, h_id),
+                            )
+                            remaining_sell = 0.0
+                            break
 
                 conn.execute(
                     "UPDATE wallet SET cash_balance = ?, updated_at = datetime('now')"
@@ -290,30 +319,10 @@ class PaperTradeStore:
                     (new_cash,),
                 )
 
-                if new_qty <= 1e-12:
-                    conn.execute("DELETE FROM holdings WHERE isin = ?", (isin,))
-                elif holding_row:
-                    conn.execute(
-                        """
-                        UPDATE holdings
-                        SET quantity = ?, avg_price = ?, updated_at = datetime('now')
-                        WHERE isin = ?
-                        """,
-                        (new_qty, new_avg, isin),
-                    )
-                else:
-                    conn.execute(
-                        """
-                        INSERT INTO holdings (isin, quantity, avg_price, updated_at)
-                        VALUES (?, ?, ?, datetime('now'))
-                        """,
-                        (isin, new_qty, new_avg),
-                    )
-
                 conn.execute(
                     """
                     INSERT INTO trades (
-                    isin, side, amount, quantity, price, gross_value, realized_pnl, created_at
+                        isin, side, amount, quantity, price, gross_value, realized_pnl, created_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
                     """,
                     (

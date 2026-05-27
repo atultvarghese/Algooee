@@ -4,7 +4,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 // Hooks & Utils
 import useStocks from "./hooks/useStocks";
 import usePaperTrade from "./hooks/usePaperTrade";
-import { formatINR, formatPercent, formatDateLabel, formatDateTime, formatRelativeTime } from "./utils/formatters";
+import { formatINR, formatPercent, formatDateLabel, formatDateTime, formatRelativeTime, formatExactDateTime, formatPreciseRelativeTime } from "./utils/formatters";
 
 const roundQty = (q) => {
   const n = Number(q);
@@ -17,7 +17,7 @@ import StockCard from "./components/StockCard";
 
 export default function StockDashboard() {
   const [activePage, setActivePage] = useState("stock");
-  
+
   // Local Form UI States
   const [tradeAmount, setTradeAmount] = useState("");
   const [tradePrice, setTradePrice] = useState("");
@@ -55,7 +55,7 @@ export default function StockDashboard() {
     const fallbackPrice = Number(todayPrice ?? data?.lastPrice);
     const editedPrice = Number(tradePrice);
     const executionPrice = Number.isFinite(editedPrice) && editedPrice > 0 ? editedPrice : Number.isFinite(fallbackPrice) && fallbackPrice > 0 ? fallbackPrice : NaN;
-    
+
     const success = await placePaperOrder(side, selected, amount, executionPrice);
     if (success) setTradeAmount("");
   };
@@ -78,18 +78,18 @@ export default function StockDashboard() {
     realized_pnl: 0, unrealized_pnl: 0, total_pnl: 0, pnl_vs_funded: 0, day_pnl: 0,
     positions: [], trades: [], cash_flows: [],
   };
-  
+
   const selectedPosition = (paper.positions || []).find((p) => p.isin === selected);
   const watchlistSource = remoteStocks || stocks;
   const query = (stockSearch || "").trim().toLowerCase();
   const visibleStocks = query
     ? watchlistSource.filter((s) => {
-        const name = (s.name || "").toLowerCase();
-        const ticker = (s.ticker || "").toLowerCase();
-        return name.includes(query) || ticker.includes(query);
-      })
+      const name = (s.name || "").toLowerCase();
+      const ticker = (s.ticker || "").toLowerCase();
+      return name.includes(query) || ticker.includes(query);
+    })
     : watchlistSource;
-  
+
   const chartActualHistory = data?.history ? data.history.slice(-10) : [];
   const chartBacktest = data?.backtest ? data.backtest.slice(-10) : [];
   const chartFuture = data?.predicted ? data.predicted.slice(0, 1) : [];
@@ -247,10 +247,10 @@ export default function StockDashboard() {
 
               {/* Main Grid: Left for portfolio holdings, Right for actions & logs */}
               <div style={{ display: "grid", gridTemplateColumns: "2.1fr 1fr", gap: "24px", alignItems: "start" }}>
-                
+
                 {/* Left Side: Metrics & Positions */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-                  
+
                   {/* Metric Cards */}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
                     {[
@@ -286,22 +286,21 @@ export default function StockDashboard() {
                       <div style={{ border: "1px solid #142234", borderRadius: 8, overflow: "hidden" }}>
                         <div style={{
                           display: "grid",
-                          gridTemplateColumns: "1.4fr 0.8fr 1.1fr 1fr 1.1fr 1.6fr",
+                          gridTemplateColumns: "1.4fr 1.2fr 1.1fr 1fr 1.1fr 1.6fr",
                           background: "#0c1827", color: "#556a84",
                           fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase"
                         }}>
                           <div style={{ padding: "12px 14px", borderRight: "1px solid #142234" }}>Asset</div>
-                          <div style={{ padding: "12px 14px", borderRight: "1px solid #142234" }}>Qty</div>
+                          <div style={{ padding: "12px 14px", borderRight: "1px solid #142234" }}>Amt Purchased</div>
                           <div style={{ padding: "12px 14px", borderRight: "1px solid #142234" }}>Avg Cost</div>
                           <div style={{ padding: "12px 14px", borderRight: "1px solid #142234" }}>Current</div>
                           <div style={{ padding: "12px 14px", borderRight: "1px solid #142234" }}>Unrealized P/L</div>
                           <div style={{ padding: "12px 14px" }}>Purchase Date & Recency</div>
                         </div>
-
                         {(paper.positions || []).map((pos) => (
-                          <div key={pos.isin} style={{
+                          <div key={pos.id || pos.isin} style={{
                             display: "grid",
-                            gridTemplateColumns: "1.4fr 0.8fr 1.1fr 1fr 1.1fr 1.6fr",
+                            gridTemplateColumns: "1.4fr 1.2fr 1.1fr 1fr 1.1fr 1.6fr",
                             borderTop: "1px solid #142234", fontSize: 12,
                             background: "#08101a", color: "#cde",
                             alignItems: "center"
@@ -311,7 +310,7 @@ export default function StockDashboard() {
                               <div style={{ fontSize: 9, color: "#556a84", marginTop: 2 }}>{pos.isin}</div>
                             </div>
                             <div style={{ padding: "12px 14px", borderRight: "1px solid #142234", fontFamily: "'Space Mono', monospace", color: "#9bb0c4" }}>
-                              {pos.quantity}
+                              {formatINR(pos.cost_value)}
                             </div>
                             <div style={{ padding: "12px 14px", borderRight: "1px solid #142234", fontFamily: "'Space Mono', monospace", color: "#9bb0c4" }}>
                               {formatINR(pos.avg_price)}
@@ -328,8 +327,8 @@ export default function StockDashboard() {
                               {formatINR(pos.unrealized_pnl)}
                             </div>
                             <div style={{ padding: "12px 14px", color: "#9bb0c4" }}>
-                              <div style={{ color: "#fff" }}>{formatDateTime(pos.updated_at)}</div>
-                              <div style={{ fontSize: 10, color: "#00e5a0", marginTop: 2 }}>{formatRelativeTime(pos.updated_at)}</div>
+                              <div style={{ color: "#fff", fontFamily: "'Space Mono', monospace" }}>{formatExactDateTime(pos.updated_at)}</div>
+                              <div style={{ fontSize: 10, color: "#00e5a0", marginTop: 2 }}>{formatPreciseRelativeTime(pos.updated_at)}</div>
                             </div>
                           </div>
                         ))}
@@ -348,7 +347,7 @@ export default function StockDashboard() {
 
                 {/* Right Side: Admin Tools & Transaction Log */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-                  
+
                   {/* Admin Funding / Reset Control */}
                   <div style={{
                     background: "#08101a", border: "1px solid #142234",
@@ -356,7 +355,7 @@ export default function StockDashboard() {
                     boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
                   }}>
                     <div style={{ fontSize: 12, color: "#9bb0c4", letterSpacing: 1, fontWeight: 700, marginBottom: 14 }}>ADMIN CONTROLS</div>
-                    
+
                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                       <div>
                         <label style={{ display: "block", fontSize: 10, color: "#556a84", marginBottom: 6, fontWeight: 600 }}>ADD FUNDS (INR)</label>
@@ -370,7 +369,7 @@ export default function StockDashboard() {
                           }}
                         />
                       </div>
-                      
+
                       <button
                         onClick={handleAddFunds} disabled={paperBusy}
                         style={{
@@ -435,7 +434,7 @@ export default function StockDashboard() {
                                 {trade.isin}
                               </div>
                               <div style={{ fontSize: 9, color: "#556a84", marginTop: 4 }}>
-                                {formatDateTime(trade.created_at)} ({formatRelativeTime(trade.created_at)})
+                                {formatExactDateTime(trade.created_at)} ({formatPreciseRelativeTime(trade.created_at)})
                               </div>
                             </div>
                             <div style={{ textAlign: "right" }}>

@@ -82,3 +82,31 @@ def test_place_order_buy_creates_order(mock_paper_trade):
 def test_place_order_sell_without_holdings_raises(mock_paper_trade):
     with pytest.raises(ValueError):
         mock_paper_trade.place_order("INE064C01022", "sell", 1000, 100)
+
+
+def test_fifo_multiple_purchases_and_partial_sales(mock_paper_trade):
+    mock_paper_trade.add_funds(10000)
+    # Buy 1: 10 units at 100 each (amount 1000)
+    mock_paper_trade.place_order("INE397D01024", "buy", 1000, 100)
+    # Buy 2: 5 units at 200 each (amount 1000)
+    mock_paper_trade.place_order("INE397D01024", "buy", 1000, 200)
+
+    # list_holdings should return 2 separate rows
+    holdings = mock_paper_trade.list_holdings()
+    isin_holdings = [h for h in holdings if h["isin"] == "INE397D01024"]
+    assert len(isin_holdings) == 2
+    assert isin_holdings[0]["quantity"] == 10.0
+    assert isin_holdings[0]["avg_price"] == 100.0
+    assert isin_holdings[1]["quantity"] == 5.0
+    assert isin_holdings[1]["avg_price"] == 200.0
+
+    # Sell 12 units at 300 each (amount 3600)
+    result = mock_paper_trade.place_order("INE397D01024", "sell", 3600, 300)
+    assert result.realized_pnl == 2200.0
+
+    # Remaining holdings should be 1 row with 3 units of Buy 2
+    holdings_after = mock_paper_trade.list_holdings()
+    isin_holdings_after = [h for h in holdings_after if h["isin"] == "INE397D01024"]
+    assert len(isin_holdings_after) == 1
+    assert isin_holdings_after[0]["quantity"] == 3.0
+    assert isin_holdings_after[0]["avg_price"] == 200.0

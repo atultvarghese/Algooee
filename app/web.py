@@ -274,6 +274,7 @@ def _build_paper_portfolio_snapshot():
 
         positions.append(
             {
+                "id": holding["id"],
                 "isin": isin,
                 "name": stock_name_by_isin.get(isin, isin),
                 "quantity": round(qty, 6),
