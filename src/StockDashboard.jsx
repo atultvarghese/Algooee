@@ -5,6 +5,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import useStocks from "./hooks/useStocks";
 import usePaperTrade from "./hooks/usePaperTrade";
 import { formatINR, formatPercent, formatDateLabel, formatDateTime, formatRelativeTime, formatExactDateTime, formatPreciseRelativeTime } from "./utils/formatters";
+import { API_BASE } from "./utils/constants";
 
 const roundQty = (q) => {
   const n = Number(q);
@@ -14,9 +15,11 @@ const roundQty = (q) => {
 // Components (UPDATED IMPORTS)
 import { RiskMeter, ConfidenceRing, CustomTooltip } from "./components/CommonWidgets";
 import StockCard from "./components/StockCard";
+import OptionsChainView from "./components/OptionsChainView";
 
 export default function StockDashboard() {
   const [activePage, setActivePage] = useState("stock");
+  const [optionUnderlying, setOptionUnderlying] = useState("NIFTY");
 
   // Local Form UI States
   const [tradeAmount, setTradeAmount] = useState("");
@@ -159,6 +162,17 @@ export default function StockDashboard() {
               STOCK PAGE
             </button>
             <button
+              onClick={() => setActivePage("options")}
+              style={{
+                background: activePage === "options" ? "#00e5a022" : "#0a1520",
+                color: activePage === "options" ? "#00e5a0" : "#778899",
+                border: `1px solid ${activePage === "options" ? "#00e5a055" : "#1a2a3a"}`,
+                borderRadius: 8, padding: "6px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer",
+              }}
+            >
+              OPTIONS CHAIN
+            </button>
+            <button
               onClick={() => setActivePage("admin")}
               style={{
                 background: activePage === "admin" ? "#00e5a022" : "#0a1520",
@@ -216,7 +230,14 @@ export default function StockDashboard() {
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {visibleStocks.map(s => (
             <StockCard key={s.ticker} ticker={s.ticker} name={s.name} meta={s} selected={selected === s.ticker}
-              data={stockData[s.ticker]} onClick={() => { setSelected(s.ticker); setActivePage("stock"); }} onRemove={() => removeWatchlistStock(s.ticker)} />
+              data={stockData[s.ticker]} onClick={() => {
+                setSelected(s.ticker);
+                if (activePage === "options") {
+                  setOptionUnderlying(s.ticker);
+                } else {
+                  setActivePage("stock");
+                }
+              }} onRemove={() => removeWatchlistStock(s.ticker)} />
           ))}
           {!visibleStocks.length && <div style={{ color: "#556677", fontSize: 11, padding: "6px 4px" }}>No stocks found.</div>}
         </div>
@@ -224,7 +245,17 @@ export default function StockDashboard() {
 
       {/* Main content */}
       <div style={{ overflowY: "auto", padding: "24px 28px" }}>
-        {activePage === "admin" ? (
+        {activePage === "options" ? (
+          <OptionsChainView
+            stocks={stocks}
+            selectedUnderlying={optionUnderlying}
+            setSelectedUnderlying={setOptionUnderlying}
+            paper={paper}
+            paperBusy={paperBusy}
+            placePaperOrder={placePaperOrder}
+            formatINR={formatINR}
+          />
+        ) : activePage === "admin" ? (
           paperLoading && !paperPortfolio ? (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60%", color: "#445566", fontSize: 14 }}>
               Loading paper trading account…

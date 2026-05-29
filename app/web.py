@@ -132,6 +132,7 @@ def _to_float_or_none(value):
 
 def _fetch_ltp_snapshot(isin: str):
     """Fetch current last traded price and previous close from market quote."""
+
     if not client:
         return None, None, None
 
@@ -630,3 +631,56 @@ async def paper_reset_account(request: PaperResetRequest):
         return _build_paper_portfolio_snapshot()
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Paper reset error: {str(e)}")
+
+
+def _resolve_underlying_key(key: str) -> str:
+    key_upper = key.strip().upper()
+    if "|" in key:
+        return key.strip()
+    if key_upper in ["NIFTY", "NIFTY 50", "NIFTY_50"]:
+        return "NSE_INDEX|Nifty 50"
+    if key_upper in ["BANKNIFTY", "NIFTY BANK", "NIFTY_BANK"]:
+        return "NSE_INDEX|Nifty Bank"
+
+    # If it is a 12-character alphanumeric ISIN, look up the active trading symbol from Upstox
+    if len(key_upper) == 12 and key_upper.isalnum():
+        if client:
+            try:
+                results = client.search_instruments(query=key_upper, exchange="NSE", segment="EQ")
+                if results and len(results) > 0:
+                    return results[0]["instrument_key"]
+            except Exception as e:
+                print(f"Warning: Upstox Instrument Search failed for {key_upper}: {str(e)}")
+
+    # Otherwise assume NSE equity symbol (if it's not an ISIN but e.g. "TCS")
+    return f"NSE_EQ|{key.strip()}"
+
+
+@app.get("/api/options/expiries/{underlying_key}", tags=["Options"])
+async def get_options_expiries(underlying_key: str):
+    """Fetch all unique option expiry dates for a given underlying."""
+    if not client:
+        raise HTTPException(status_code=503, detail="Upstox API client not configured")
+
+    try:
+        resolved_key = _resolve_underlying_key(underlying_key)
+        contracts = client.get_option_contracts(resolved_key)
+        expiries = sorted(list(set(c["expiry"] for c in contracts if "expiry" in c)))
+        return {"underlying_key": resolved_key, "expiries": expiries}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch expiries: {str(e)}")
+
+
+@app.get("/api/options/chain", tags=["Options"])
+async def get_options_chain(underlying_key: str, expiry_date: str):
+    """Fetch put/call option chain for a given underlying and expiry date."""
+    if not client:
+        raise HTTPException(status_code=503, detail="Upstox API client not configured")
+
+    try:
+        resolved_key = _resolve_underlying_key(underlying_key)
+        chain_data = client.get_option_chain(resolved_key, expiry_date)
+        return {"underlying_key": resolved_key, "expiry_date": expiry_date, "chain": chain_data}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch option chain: {str(e)}")
+

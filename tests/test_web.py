@@ -1,3 +1,4 @@
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app.web import app
@@ -26,3 +27,35 @@ def test_prediction_endpoint_requires_token():
 
     # Since we don't have an Upstox token, we expect a 503
     assert response.status_code == 503 or response.status_code == 400
+
+
+def test_options_expiries_endpoint():
+    with patch("app.web.client") as mock_upstox_client:
+        mock_upstox_client.get_option_contracts.return_value = [
+            {"expiry": "2026-06-25"},
+            {"expiry": "2026-07-30"},
+        ]
+
+        response = client.get("/api/options/expiries/NIFTY")
+        assert response.status_code == 200
+        json_data = response.json()
+        assert json_data["underlying_key"] == "NSE_INDEX|Nifty 50"
+        assert json_data["expiries"] == ["2026-06-25", "2026-07-30"]
+
+
+def test_options_chain_endpoint():
+    with patch("app.web.client") as mock_upstox_client:
+        mock_upstox_client.get_option_chain.return_value = [
+            {
+                "strike_price": 25000,
+                "call_options": {"instrument_key": "NSE_FO|1"},
+                "put_options": {"instrument_key": "NSE_FO|2"}
+            }
+        ]
+
+        response = client.get("/api/options/chain?underlying_key=NIFTY&expiry_date=2026-06-25")
+        assert response.status_code == 200
+        json_data = response.json()
+        assert json_data["underlying_key"] == "NSE_INDEX|Nifty 50"
+        assert len(json_data["chain"]) == 1
+        assert json_data["chain"][0]["strike_price"] == 25000

@@ -24,10 +24,21 @@ class UpstoxClient:
             "Authorization": f"Bearer {self.api_token}",
         }
 
-    def _make_request(self, endpoint, params=None):
+    def _make_request(self, endpoint, params=None, use_analytics_token=False):
         """Private helper to send GET requests to Upstox API."""
-        url = f"{self.BASE_URL}{endpoint}"
-        response = requests.get(url, headers=self.headers, params=params)
+        if endpoint.startswith("/v2/") or endpoint.startswith("/v3/"):
+            url = f"https://api.upstox.com{endpoint}"
+        else:
+            url = f"{self.BASE_URL}{endpoint}"
+        
+        headers = self.headers.copy()
+        if use_analytics_token:
+            load_dotenv(override=True)
+            analytics_token = os.getenv("UPSTOX_ANALYTICS_TOKEN")
+            if analytics_token:
+                headers["Authorization"] = f"Bearer {analytics_token}"
+
+        response = requests.get(url, headers=headers, params=params)
 
         if response.status_code == 200:
             return response.json()
@@ -62,7 +73,7 @@ class UpstoxClient:
         :param exchange: Exchange type (default NSE_EQ)
         :return: Quote payload with last_price and previous close when available
         """
-        instrument_key = f"{exchange}|{isin}"
+        instrument_key = isin if "|" in isin else f"{exchange}|{isin}"
         data = self._make_request(
             "/market-quote/ltp",
             params={"instrument_key": instrument_key},
@@ -86,3 +97,48 @@ class UpstoxClient:
 
         data = self._make_request(endpoint)
         return data.get("data", {}).get("candles", [])
+
+    def get_option_contracts(self, underlying_key, expiry_date=None):
+        """
+        Fetch available option contracts for an underlying symbol.
+        :param underlying_key: Instrument key of the underlying (e.g. NSE_EQ|INE002A01018)
+        :param expiry_date: Expiry date filter (YYYY-MM-DD)
+        :return: List of option contract details
+        """
+        params = {"instrument_key": underlying_key}
+        if expiry_date:
+            params["expiry_date"] = expiry_date
+
+        data = self._make_request("/v2/option/contract", params=params, use_analytics_token=True)
+        return data.get("data", [])
+
+    def get_option_chain(self, underlying_key, expiry_date):
+        """
+        Fetch put/call option chain for an underlying symbol and expiry.
+        :param underlying_key: Instrument key of the underlying (e.g. NSE_EQ|INE002A01018)
+        :param expiry_date: Expiry date (YYYY-MM-DD)
+        :return: List of strike-wise call and put option contracts
+        """
+        params = {
+            "instrument_key": underlying_key,
+            "expiry_date": expiry_date
+        }
+        data = self._make_request("/v2/option/chain", params=params, use_analytics_token=True)
+        return data.get("data", [])
+
+    def search_instruments(self, query, exchange=None, segment=None):
+        """
+        Search for instruments using query and optional filters.
+        :param query: Symbol, name, ISIN, etc.
+        :param exchange: Exchange filter (e.g. NSE, BSE)
+        :param segment: Segment filter (e.g. EQ, FO)
+        :return: List of matching instruments
+        """
+        params = {"query": query}
+        if exchange:
+            params["exchange"] = exchange
+        if segment:
+            params["segment"] = segment
+
+        data = self._make_request("/v2/instruments/search", params=params, use_analytics_token=True)
+        return data.get("data", [])
