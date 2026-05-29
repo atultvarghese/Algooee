@@ -173,7 +173,7 @@ export default function useStocks() {
       const isin = ticker;
       const end = new Date();
       const start = new Date();
-      start.setDate(end.getDate() - 180);
+      start.setDate(end.getDate() - 730);
 
       const histResp = await fetch(`${API_BASE}/api/historical-candles`, {
         method: 'POST',
@@ -215,7 +215,7 @@ export default function useStocks() {
         const predResp = await fetch(`${API_BASE}/api/predict`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isin, start_date: formatLocalDate(start), end_date: formatLocalDate(end), interval: "day", count: 1, forecast_days: 5, backtest_days: 20 }),
+          body: JSON.stringify({ isin, start_date: formatLocalDate(start), end_date: formatLocalDate(end), interval: "day", count: 1, forecast_days: 1, backtest_days: 30 }),
         });
         if (predResp.ok) predJson = await predResp.json();
       } catch (predErr) { console.warn(`Predict fetch error for ${ticker}:`, predErr); }
@@ -241,7 +241,7 @@ export default function useStocks() {
         })
         .filter(Boolean)
         .sort((a, b) => a.ts - b.ts)
-        .slice(0, 5);
+        .slice(0, 1);
 
       let predicted = futureForecast;
       if (!predicted.length && Number.isFinite(predictedHigh)) {
@@ -257,7 +257,21 @@ export default function useStocks() {
           const actualHigh = Number(point.actual_high ?? point.actual);
           const predictedValue = Number(point.predicted_high ?? point.predicted);
           if (ts === null || !Number.isFinite(actualHigh) || !Number.isFinite(predictedValue)) return null;
-          return { ts, dateLabel: formatDateLabel(ts), actual: +actualHigh.toFixed(2), predicted: +predictedValue.toFixed(2) };
+          const lower = Number(point.p10 ?? point.lower);
+          const upper = Number(point.p90 ?? point.upper);
+          const absError = Number(point.abs_error);
+          const errorPct = Number(point.error_pct);
+          return {
+            ts,
+            dateLabel: formatDateLabel(ts),
+            actual: +actualHigh.toFixed(2),
+            predicted: +predictedValue.toFixed(2),
+            lower: Number.isFinite(lower) ? +lower.toFixed(2) : null,
+            upper: Number.isFinite(upper) ? +upper.toFixed(2) : null,
+            absError: Number.isFinite(absError) ? +absError.toFixed(2) : Math.abs(actualHigh - predictedValue),
+            errorPct: Number.isFinite(errorPct) ? +errorPct.toFixed(2) : null,
+            directionalHit: Boolean(point.directional_hit),
+          };
         })
         .filter(Boolean)
         .sort((a, b) => a.ts - b.ts);
@@ -266,25 +280,48 @@ export default function useStocks() {
       const confidence = Number.isFinite(confidenceValue) ? confidenceValue : predJson.confidence === "high" ? 80 : predJson.confidence === "moderate" ? 50 : 0;
       const maeValue = Number(predJson.mae ?? predJson?.forecast?.mae);
       const mapeValue = Number(predJson.mape ?? predJson?.forecast?.mape);
+      const rmseValue = Number(predJson.rmse ?? predJson?.forecast?.rmse);
+      const biasValue = Number(predJson.bias ?? predJson?.forecast?.bias);
       const p10Value = Number(predJson.p10 ?? predJson?.forecast?.p10);
       const p90Value = Number(predJson.p90 ?? predJson?.forecast?.p90);
       const errorRatioPct = Number.isFinite(maeValue) && Number.isFinite(predictedHigh) && Math.abs(predictedHigh) > 0 ? (maeValue / Math.abs(predictedHigh)) * 100 : NaN;
+      const summarySource = predJson.backtest_summary || {};
+      const backtestSummary = {
+        rows: Number.isFinite(Number(summarySource.rows)) ? Number(summarySource.rows) : backtest.length,
+        mae: Number.isFinite(Number(summarySource.mae)) ? +Number(summarySource.mae).toFixed(4) : null,
+        rmse: Number.isFinite(Number(summarySource.rmse)) ? +Number(summarySource.rmse).toFixed(4) : null,
+        mape: Number.isFinite(Number(summarySource.mape)) ? +Number(summarySource.mape).toFixed(4) : null,
+        bias: Number.isFinite(Number(summarySource.bias)) ? +Number(summarySource.bias).toFixed(4) : null,
+        directionalAccuracy: Number.isFinite(Number(summarySource.directional_accuracy)) ? +Number(summarySource.directional_accuracy).toFixed(2) : null,
+        intervalCoverage: Number.isFinite(Number(summarySource.interval_coverage)) ? +Number(summarySource.interval_coverage).toFixed(2) : null,
+        naiveMae: Number.isFinite(Number(summarySource.naive_mae)) ? +Number(summarySource.naive_mae).toFixed(4) : null,
+        bestBaselineMae: Number.isFinite(Number(summarySource.best_baseline_mae)) ? +Number(summarySource.best_baseline_mae).toFixed(4) : null,
+        modelEdgePct: Number.isFinite(Number(summarySource.model_edge_pct)) ? +Number(summarySource.model_edge_pct).toFixed(2) : null,
+      };
+      const diagnostics = predJson.diagnostics || {};
+      const expectedMovePct = Number(predJson.expectedMovePct);
 
       const dataObj = {
         ticker: isin,
         name: histJson.isin || isin,
         history,
         backtest,
+        backtestSummary,
+        diagnostics,
         predicted,
         lastPrice: +lastPrice,
         change: history.length ? +(lastPrice - history[0].price).toFixed(2) : 0,
         changePct: history.length ? +(((lastPrice - history[0].price) / history[0].price) * 100).toFixed(2) : 0,
-        confidence,
+        confidence: +confidence.toFixed(2),
+        confidenceLabel: predJson.confidence_label || (confidence >= 75 ? "high" : confidence >= 55 ? "moderate" : "low"),
         mae: Number.isFinite(maeValue) ? +maeValue.toFixed(4) : null,
         mape: Number.isFinite(mapeValue) ? +mapeValue.toFixed(4) : null,
+        rmse: Number.isFinite(rmseValue) ? +rmseValue.toFixed(4) : null,
+        bias: Number.isFinite(biasValue) ? +biasValue.toFixed(4) : null,
         p10: Number.isFinite(p10Value) ? +p10Value.toFixed(2) : null,
         p90: Number.isFinite(p90Value) ? +p90Value.toFixed(2) : null,
         errorRatioPct: Number.isFinite(errorRatioPct) ? +errorRatioPct.toFixed(4) : null,
+        expectedMovePct: Number.isFinite(expectedMovePct) ? +expectedMovePct.toFixed(2) : null,
         riskScore: Number.isFinite(+predJson.riskScore) ? +predJson.riskScore : 0,
         trend: predJson.trend || 'Neutral',
         trendStrength: Number.isFinite(+predJson.trendStrength) ? +predJson.trendStrength : 0,

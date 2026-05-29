@@ -36,7 +36,7 @@ class StockPredictionRequest(BaseModel):
     end_date: str
     interval: str = "day"
     count: int = 1
-    forecast_days: int = 5
+    forecast_days: int = 1
     backtest_days: int = 10
 
 
@@ -132,6 +132,7 @@ def _to_float_or_none(value):
 
 def _fetch_ltp_snapshot(isin: str):
     """Fetch current last traded price and previous close from market quote."""
+
     if not client:
         return None, None, None
 
@@ -274,6 +275,7 @@ def _build_paper_portfolio_snapshot():
 
         positions.append(
             {
+                "id": holding["id"],
                 "isin": isin,
                 "name": stock_name_by_isin.get(isin, isin),
                 "quantity": round(qty, 6),
@@ -284,6 +286,7 @@ def _build_paper_portfolio_snapshot():
                 "market_value": round(current_value, 2),
                 "unrealized_pnl": round(position_unrealized, 2),
                 "day_pnl": round(position_day_pnl, 2),
+                "updated_at": holding["updated_at"],
             }
         )
 
@@ -457,21 +460,26 @@ async def predict_stock(request: StockPredictionRequest):
         df = pd.DataFrame(candles, columns=headers)
 
         # Train model and predict
+        future_days = max(1, min(int(request.forecast_days or 1), 15))
+        backtest_days = max(8, min(int(request.backtest_days or 30), 60))
         predictor = Prediction(df)
         predictor.feature_engineering()
-        predictor.train_model()
+        predictor.train_model(backtest_points=backtest_days)
         forecast = predictor.predict_next_day()
-        future_days = max(1, min(int(request.forecast_days or 5), 15))
-        backtest_days = max(1, min(int(request.backtest_days or 10), 60))
         future_forecast = predictor.predict_future_days(days=future_days)
         backtest = predictor.get_backtest_points(limit=backtest_days)
+        backtest_summary = predictor.get_backtest_summary()
+        diagnostics = predictor.get_diagnostics()
+        signal = predictor.get_signal_snapshot(forecast)
 
         # Compatibility fields + richer payload
         predicted_high = float(forecast.get("predicted_high", 0.0))
         mae = float(forecast.get("mae", 0.0))
         mape = float(forecast.get("mape", 0.0))
-        error_ratio = mae / max(abs(predicted_high), 1.0)
-        confidence = "high" if (mape <= 2.0 and error_ratio <= 0.02) else "moderate"
+        confidence = round(predictor.confidence_score(), 2)
+        confidence_label = (
+            "high" if confidence >= 75 else "moderate" if confidence >= 55 else "low"
+        )
 
         result = {
             "isin": request.isin,
@@ -480,10 +488,17 @@ async def predict_stock(request: StockPredictionRequest):
             "p90": float(forecast.get("p90", predicted_high)),
             "mae": mae,
             "mape": mape,
+            "rmse": float(forecast.get("rmse", 0.0)),
+            "bias": float(forecast.get("bias", 0.0)),
             "confidence": confidence,
+            "confidence_label": confidence_label,
             "forecast": forecast,
             "backtest": backtest,
+            "backtest_summary": backtest_summary,
+            "diagnostics": diagnostics,
             "future_forecast": future_forecast,
+            "model_version": "walk_forward_ensemble_v2",
+            **signal,
         }
         PREDICTION_CACHE[cache_key] = {"ts": now_ts, "value": result}
         return result
@@ -616,3 +631,56 @@ async def paper_reset_account(request: PaperResetRequest):
         return _build_paper_portfolio_snapshot()
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Paper reset error: {str(e)}")
+
+
+def _resolve_underlying_key(key: str) -> str:
+    key_upper = key.strip().upper()
+    if "|" in key:
+        return key.strip()
+    if key_upper in ["NIFTY", "NIFTY 50", "NIFTY_50"]:
+        return "NSE_INDEX|Nifty 50"
+    if key_upper in ["BANKNIFTY", "NIFTY BANK", "NIFTY_BANK"]:
+        return "NSE_INDEX|Nifty Bank"
+
+    # If it is a 12-character alphanumeric ISIN, look up the active trading symbol from Upstox
+    if len(key_upper) == 12 and key_upper.isalnum():
+        if client:
+            try:
+                results = client.search_instruments(query=key_upper, exchange="NSE", segment="EQ")
+                if results and len(results) > 0:
+                    return results[0]["instrument_key"]
+            except Exception as e:
+                print(f"Warning: Upstox Instrument Search failed for {key_upper}: {str(e)}")
+
+    # Otherwise assume NSE equity symbol (if it's not an ISIN but e.g. "TCS")
+    return f"NSE_EQ|{key.strip()}"
+
+
+@app.get("/api/options/expiries/{underlying_key}", tags=["Options"])
+async def get_options_expiries(underlying_key: str):
+    """Fetch all unique option expiry dates for a given underlying."""
+    if not client:
+        raise HTTPException(status_code=503, detail="Upstox API client not configured")
+
+    try:
+        resolved_key = _resolve_underlying_key(underlying_key)
+        contracts = client.get_option_contracts(resolved_key)
+        expiries = sorted(list(set(c["expiry"] for c in contracts if "expiry" in c)))
+        return {"underlying_key": resolved_key, "expiries": expiries}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch expiries: {str(e)}")
+
+
+@app.get("/api/options/chain", tags=["Options"])
+async def get_options_chain(underlying_key: str, expiry_date: str):
+    """Fetch put/call option chain for a given underlying and expiry date."""
+    if not client:
+        raise HTTPException(status_code=503, detail="Upstox API client not configured")
+
+    try:
+        resolved_key = _resolve_underlying_key(underlying_key)
+        chain_data = client.get_option_chain(resolved_key, expiry_date)
+        return {"underlying_key": resolved_key, "expiry_date": expiry_date, "chain": chain_data}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch option chain: {str(e)}")
+

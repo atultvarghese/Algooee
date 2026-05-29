@@ -116,3 +116,4 @@ __pypackages__/
 # OS / misc
 .DS_Store
 Thumbs.db
+*tmp.py

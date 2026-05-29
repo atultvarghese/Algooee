@@ -10,6 +10,7 @@ Before you begin.
 
 - **Install Git**: You can download and install the latest version from the official [Git-SCM website](https://git-scm.com/install/).
 - **Install Python**: You can download and install the python.3.14.xx version from the official [Python-ORG website](https://www.python.org/downloads/).
+- **Install Node.js**: You can download and install the LTS version from the official [Node.js website](https://nodejs.org/).
 
 ## Setup Instructions
 
@@ -71,7 +72,7 @@ Open `.env` and add your `UPSTOX_API_TOKEN`
 Start the development server using the following command:
 
 ```powershell
-uvicorn server:app --reload
+python server.py
 ```
 ## 4. Run the Client (Development)
 
