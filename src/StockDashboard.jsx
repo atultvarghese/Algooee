@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 // Hooks & Utils
 import useStocks from "./hooks/useStocks";
 import usePaperTrade from "./hooks/usePaperTrade";
-import { formatINR, formatPercent, formatDateLabel, formatDateTime, formatRelativeTime, formatExactDateTime, formatPreciseRelativeTime } from "./utils/formatters";
-import { API_BASE } from "./utils/constants";
+import { formatINR, formatPercent, formatDateLabel, formatExactDateTime, formatPreciseRelativeTime } from "./utils/formatters";
 
 const roundQty = (q) => {
   const n = Number(q);
