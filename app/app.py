@@ -109,7 +109,9 @@ class UpstoxClient:
         if expiry_date:
             params["expiry_date"] = expiry_date
 
-        data = self._make_request("/v2/option/contract", params=params, use_analytics_token=True)
+        data = self._make_request(
+            "/v2/option/contract", params=params, use_analytics_token=True
+        )
         return data.get("data", [])
 
     def get_option_chain(self, underlying_key, expiry_date):
@@ -140,5 +142,7 @@ class UpstoxClient:
         if segment:
             params["segment"] = segment
 
-        data = self._make_request("/v2/instruments/search", params=params, use_analytics_token=True)
+        data = self._make_request(
+            "/v2/instruments/search", params=params, use_analytics_token=True
+        )
         return data.get("data", [])

@@ -322,7 +322,8 @@ class PaperTradeStore:
                 conn.execute(
                     """
                     INSERT INTO trades (
-                        isin, side, amount, quantity, price, gross_value, realized_pnl, created_at
+                        isin, side, amount, quantity, price, gross_value,
+                        realized_pnl, created_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
                     """,
                     (

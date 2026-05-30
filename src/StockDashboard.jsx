@@ -5,6 +5,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import useStocks from "./hooks/useStocks";
 import usePaperTrade from "./hooks/usePaperTrade";
 import { formatINR, formatPercent, formatDateLabel, formatExactDateTime, formatPreciseRelativeTime } from "./utils/formatters";
+import { API_BASE } from "./utils/constants";
 
 const roundQty = (q) => {
   const n = Number(q);
@@ -25,8 +26,12 @@ export default function StockDashboard() {
   const [tradePrice, setTradePrice] = useState("");
   const [fundAmount, setFundAmount] = useState("");
   const [stockSearch, setStockSearch] = useState("");
-  const [addStockIsin, setAddStockIsin] = useState("");
-  const [addStockName, setAddStockName] = useState("");
+
+  // Upstox Live Search UI States
+  const [liveQuery, setLiveQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
 
   // Connect Hooks
   const {
@@ -62,13 +67,41 @@ export default function StockDashboard() {
     if (success) setTradeAmount("");
   };
 
-  const handleAddStock = async () => {
-    const success = await addWatchlistStock(addStockIsin, addStockName);
-    if (success) {
-      setAddStockIsin("");
-      setAddStockName("");
-    }
+  const handleSelectSuggestion = async (suggestion) => {
+    setLiveQuery("");
+    setSearchResults([]);
+    setShowDropdown(false);
+    await addWatchlistStock(suggestion.isin, suggestion.name);
   };
+
+  useEffect(() => {
+    if (!liveQuery.trim()) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setSearchLoading(true);
+      fetch(`${API_BASE}/api/instruments/search?q=${encodeURIComponent(liveQuery)}`)
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to search instruments");
+          return res.json();
+        })
+        .then((data) => {
+          setSearchResults(data.results || []);
+          setShowDropdown(true);
+        })
+        .catch((err) => {
+          console.error("Live search error:", err);
+        })
+        .finally(() => {
+          setSearchLoading(false);
+        });
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [liveQuery]);
 
   const handleAddFunds = async () => {
     const success = await addPaperFunds(fundAmount);
@@ -202,24 +235,63 @@ export default function StockDashboard() {
             style={{ width: "100%", background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "9px 10px", fontSize: 12, outline: "none" }}
           />
         </div>
-        <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 10, padding: 10, marginBottom: 12 }}>
+        <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 10, padding: 10, marginBottom: 12, position: "relative" }}>
           <div style={{ fontSize: 10, color: "#556677", marginBottom: 8, letterSpacing: 1 }}>ADD STOCK</div>
-          <input
-            type="text" value={addStockIsin} onChange={(e) => setAddStockIsin(e.target.value.toUpperCase())}
-            placeholder="ISIN (e.g. INE467B01029)"
-            style={{ width: "100%", background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "8px 10px", fontSize: 11, outline: "none", marginBottom: 8 }}
-          />
-          <input
-            type="text" value={addStockName} onChange={(e) => setAddStockName(e.target.value)}
-            placeholder="Stock name"
-            style={{ width: "100%", background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "8px 10px", fontSize: 11, outline: "none", marginBottom: 8 }}
-          />
-          <button
-            onClick={handleAddStock} disabled={stockBusy}
-            style={{ width: "100%", background: "#00e5a022", color: "#00e5a0", border: "1px solid #00e5a055", borderRadius: 8, padding: "8px 10px", fontSize: 11, fontWeight: 700, cursor: stockBusy ? "not-allowed" : "pointer", opacity: stockBusy ? 0.6 : 1 }}
-          >
-            {stockBusy ? "ADDING..." : "ADD TO WATCHLIST"}
-          </button>
+          <div style={{ position: "relative" }}>
+            <input
+              type="text" value={liveQuery} onChange={(e) => setLiveQuery(e.target.value)}
+              placeholder="Search Live Upstox Equities..."
+              style={{ width: "100%", background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "8px 10px", fontSize: 11, outline: "none" }}
+            />
+            {searchLoading && (
+              <span style={{ position: "absolute", right: 10, top: 8, fontSize: 10, color: "#556677" }}>
+                Searching...
+              </span>
+            )}
+          </div>
+          
+          {showDropdown && searchResults.length > 0 && (
+            <div style={{
+              position: "absolute", top: "100%", left: 0, right: 0,
+              background: "#08101a", border: "1px solid #142234",
+              borderRadius: 8, marginTop: 4, zIndex: 50,
+              maxHeight: 180, overflowY: "auto",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
+            }}>
+              {searchResults.map((suggestion) => (
+                <div
+                  key={suggestion.isin}
+                  onClick={() => handleSelectSuggestion(suggestion)}
+                  style={{
+                    padding: "8px 12px", cursor: "pointer",
+                    borderBottom: "1px solid #142234", fontSize: 11,
+                    display: "flex", justifyContent: "space-between", alignItems: "center"
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "#142234"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                >
+                  <div>
+                    <div style={{ color: "#fff", fontWeight: 600 }}>{suggestion.trading_symbol}</div>
+                    <div style={{ color: "#556677", fontSize: 9 }}>{suggestion.name}</div>
+                  </div>
+                  <span style={{ color: "#00e5a0", fontSize: 9 }}>+ Add</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {showDropdown && searchResults.length === 0 && liveQuery.trim() !== "" && !searchLoading && (
+            <div style={{
+              position: "absolute", top: "100%", left: 0, right: 0,
+              background: "#08101a", border: "1px solid #142234",
+              borderRadius: 8, marginTop: 4, zIndex: 50,
+              padding: "10px", fontSize: 10, color: "#556677", textAlign: "center",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
+            }}>
+              No equities found
+            </div>
+          )}
+
           {(stockError || stockNotice) && (
             <div style={{ marginTop: 8, fontSize: 10, color: stockError ? "#fca5a5" : "#7cfccf" }}>
               {stockError || stockNotice}

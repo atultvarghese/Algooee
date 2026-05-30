@@ -11,8 +11,10 @@ from pydantic import BaseModel
 
 # pyrefly: ignore [missing-import]
 from app.app import UpstoxClient
+
 # pyrefly: ignore [missing-import]
 from app.paper_trade import PaperTradeStore
+
 # pyrefly: ignore [missing-import]
 from core.prediction import Prediction
 
@@ -649,7 +651,9 @@ def _resolve_underlying_key(key: str) -> str:
     if len(key_upper) == 12 and key_upper.isalnum():
         if client:
             try:
-                results = client.search_instruments(query=key_upper, exchange="NSE", segment="EQ")
+                results = client.search_instruments(
+                    query=key_upper, exchange="NSE", segment="EQ"
+                )
                 if results and len(results) > 0:
                     return results[0]["instrument_key"]
             except Exception as e:
@@ -686,4 +690,27 @@ async def get_options_chain(underlying_key: str, expiry_date: str):
         return {"underlying_key": resolved_key, "expiry_date": expiry_date, "chain": chain_data}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to fetch option chain: {str(e)}")
+
+
+@app.get("/api/instruments/search", tags=["Reference"])
+async def search_upstox_instruments(q: str):
+    """Search for instruments in Upstox (live search)."""
+    if not client:
+        raise HTTPException(status_code=503, detail="Upstox API client not configured")
+    try:
+        results = client.search_instruments(query=q, exchange="NSE", segment="EQ")
+        stocks = []
+        for r in results:
+            if r.get("isin"):
+                stocks.append({
+                    "isin": r["isin"],
+                    "name": r.get("name") or r.get("trading_symbol") or "",
+                    "trading_symbol": r.get("trading_symbol") or "",
+                })
+        return {"results": stocks}
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to search Upstox instruments: {str(e)}",
+        )
 

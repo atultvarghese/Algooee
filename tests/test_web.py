@@ -1,4 +1,5 @@
 from unittest.mock import patch
+
 from fastapi.testclient import TestClient
 
 # pyrefly: ignore [missing-import]
@@ -60,3 +61,23 @@ def test_options_chain_endpoint():
         assert json_data["underlying_key"] == "NSE_INDEX|Nifty 50"
         assert len(json_data["chain"]) == 1
         assert json_data["chain"][0]["strike_price"] == 25000
+
+
+def test_live_instrument_search_endpoint():
+    with patch("app.web.client") as mock_upstox_client:
+        mock_upstox_client.search_instruments.return_value = [
+            {
+                "isin": "INE002A01018",
+                "name": "RELIANCE INDUSTRIES LTD",
+                "trading_symbol": "RELIANCE",
+                "instrument_key": "NSE_EQ|INE002A01018"
+            }
+        ]
+
+        response = client.get("/api/instruments/search?q=RELIANCE")
+        assert response.status_code == 200
+        json_data = response.json()
+        assert "results" in json_data
+        assert len(json_data["results"]) == 1
+        assert json_data["results"][0]["isin"] == "INE002A01018"
+        assert json_data["results"][0]["name"] == "RELIANCE INDUSTRIES LTD"

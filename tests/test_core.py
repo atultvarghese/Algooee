@@ -1,6 +1,7 @@
 import math
 
 import pandas as pd
+
 # pyrefly: ignore [missing-import]
 import pytest
 
