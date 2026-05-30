@@ -9,9 +9,10 @@ client = TestClient(app)
 
 
 def test_root_endpoint():
-    response = client.get("/")
-    assert response.status_code == 200
-    assert "message" in response.json()
+    with patch("app.web.Path.exists", return_value=False):
+        response = client.get("/")
+        assert response.status_code == 200
+        assert "message" in response.json()
 
 
 def test_prediction_endpoint_requires_token():

@@ -1,4 +1,5 @@
 import math
+import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -7,6 +8,8 @@ from typing import List, Optional
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 # pyrefly: ignore [missing-import]
@@ -78,7 +81,18 @@ try:
 except ValueError:
     client = None
 
-PAPER_STORE = PaperTradeStore(str(Path(__file__).resolve().parents[1] / "paper_trade.db"))
+
+def _get_db_path():
+    frozen = getattr(sys, "frozen", False)
+    if frozen:
+        # Save db next to executable in compiled binary to ensure trading data is preserved
+        exe_dir = Path(sys.executable).parent
+        return str(exe_dir / "paper_trade.db")
+    else:
+        return str(Path(__file__).resolve().parents[1] / "paper_trade.db")
+
+
+PAPER_STORE = PaperTradeStore(_get_db_path())
 
 # Simple in-memory cache for expensive prediction calls
 PREDICTION_CACHE = {}
@@ -323,6 +337,10 @@ def _build_paper_portfolio_snapshot():
 @app.get("/", tags=["UI"])
 async def root():
     """Root endpoint – UI removed, API only."""
+    dist_path = Path(__file__).resolve().parents[1] / "dist"
+    index_file = dist_path / "index.html"
+    if index_file.exists():
+        return FileResponse(str(index_file))
     return {
         "message": "This server provides the Algooee API. Frontend moved to a"
         " separate React/Vite application."
@@ -713,4 +731,11 @@ async def search_upstox_instruments(q: str):
             status_code=400,
             detail=f"Failed to search Upstox instruments: {str(e)}",
         )
+
+
+# Serve static files from the frontend build if it exists
+dist_path = Path(__file__).resolve().parents[1] / "dist"
+if dist_path.exists():
+    app.mount("/", StaticFiles(directory=str(dist_path)), name="static")
+
 
