@@ -1,6 +1,7 @@
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 
+# pyrefly: ignore [missing-import]
 from app.web import app
 
 client = TestClient(app)

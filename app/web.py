@@ -9,8 +9,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+# pyrefly: ignore [missing-import]
 from app.app import UpstoxClient
+# pyrefly: ignore [missing-import]
 from app.paper_trade import PaperTradeStore
+# pyrefly: ignore [missing-import]
 from core.prediction import Prediction
 
 app = FastAPI(

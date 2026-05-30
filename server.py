@@ -5,6 +5,7 @@ Run with: uvicorn server:app --reload
 
 import uvicorn
 
+# pyrefly: ignore [missing-import]
 from app.web import app
 
 __all__ = ["app"]

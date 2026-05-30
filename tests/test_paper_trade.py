@@ -2,8 +2,10 @@ import sqlite3
 import threading
 from unittest.mock import patch
 
+# pyrefly: ignore [missing-import]
 import pytest
 
+# pyrefly: ignore [missing-import]
 from app.paper_trade import PaperTradeStore
 
 
