@@ -109,6 +109,11 @@ def main():
     binary_name = f"algooee{exe_extension}"
     target_path = os.path.join("dist", binary_name)
 
+    # Copy .env file to dist/ if it exists in the root folder
+    if os.path.exists(".env"):
+        shutil.copy(".env", os.path.join("dist", ".env"))
+        print("Copied '.env' file to 'dist/' directory next to the binary.")
+
     print(f"Your standalone executable is located at:\n  {os.path.abspath(target_path)}")
     print("\nTo share with your friends:")
     print(f"1. Send them the '{binary_name}' file.")
