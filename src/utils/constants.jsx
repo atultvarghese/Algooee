@@ -1,1 +1,4 @@
-export const API_BASE = "http://localhost:8000"; // ← change to your backend URL
+export const API_BASE =
+  window.location.hostname === "localhost" && window.location.port === "3000"
+    ? "http://localhost:8000"
+    : window.location.origin;

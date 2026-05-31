@@ -1,15 +1,32 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 // Hooks & Utils
 import useStocks from "./hooks/useStocks";
 import usePaperTrade from "./hooks/usePaperTrade";
-import { formatINR, formatPercent, formatDateLabel, formatDateTime, formatRelativeTime, formatExactDateTime, formatPreciseRelativeTime } from "./utils/formatters";
+import { formatINR, formatPercent, formatDateLabel, formatExactDateTime, formatPreciseRelativeTime } from "./utils/formatters";
 import { API_BASE } from "./utils/constants";
 
 const roundQty = (q) => {
   const n = Number(q);
   return Number.isFinite(n) ? +n.toFixed(4) : "0";
+};
+
+const getDaysRemaining = (expiryDateStr) => {
+  if (!expiryDateStr) return "";
+  const expiry = new Date(expiryDateStr);
+  const today = new Date();
+  
+  expiry.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+  
+  const diffTime = expiry - today;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (diffDays < 0) return "Expired";
+  if (diffDays === 0) return "Expires today";
+  if (diffDays === 1) return "1 day remaining";
+  return `${diffDays} days remaining`;
 };
 
 // Components (UPDATED IMPORTS)
@@ -26,8 +43,12 @@ export default function StockDashboard() {
   const [tradePrice, setTradePrice] = useState("");
   const [fundAmount, setFundAmount] = useState("");
   const [stockSearch, setStockSearch] = useState("");
-  const [addStockIsin, setAddStockIsin] = useState("");
-  const [addStockName, setAddStockName] = useState("");
+
+  // Upstox Live Search UI States
+  const [liveQuery, setLiveQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
 
   // Connect Hooks
   const {
@@ -54,22 +75,51 @@ export default function StockDashboard() {
   }, [selected, todayPrice, data?.lastPrice]);
 
   const handlePlaceOrder = async (side) => {
-    const amount = Number(tradeAmount);
+    const qty = Number(tradeAmount);
     const fallbackPrice = Number(todayPrice ?? data?.lastPrice);
     const editedPrice = Number(tradePrice);
     const executionPrice = Number.isFinite(editedPrice) && editedPrice > 0 ? editedPrice : Number.isFinite(fallbackPrice) && fallbackPrice > 0 ? fallbackPrice : NaN;
+    const amount = qty * executionPrice;
 
     const success = await placePaperOrder(side, selected, amount, executionPrice);
     if (success) setTradeAmount("");
   };
 
-  const handleAddStock = async () => {
-    const success = await addWatchlistStock(addStockIsin, addStockName);
-    if (success) {
-      setAddStockIsin("");
-      setAddStockName("");
-    }
+  const handleSelectSuggestion = async (suggestion) => {
+    setLiveQuery("");
+    setSearchResults([]);
+    setShowDropdown(false);
+    await addWatchlistStock(suggestion.isin, suggestion.name);
   };
+
+  useEffect(() => {
+    if (!liveQuery.trim()) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setSearchLoading(true);
+      fetch(`${API_BASE}/api/instruments/search?q=${encodeURIComponent(liveQuery)}`)
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to search instruments");
+          return res.json();
+        })
+        .then((data) => {
+          setSearchResults(data.results || []);
+          setShowDropdown(true);
+        })
+        .catch((err) => {
+          console.error("Live search error:", err);
+        })
+        .finally(() => {
+          setSearchLoading(false);
+        });
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [liveQuery]);
 
   const handleAddFunds = async () => {
     const success = await addPaperFunds(fundAmount);
@@ -203,24 +253,63 @@ export default function StockDashboard() {
             style={{ width: "100%", background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "9px 10px", fontSize: 12, outline: "none" }}
           />
         </div>
-        <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 10, padding: 10, marginBottom: 12 }}>
+        <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 10, padding: 10, marginBottom: 12, position: "relative" }}>
           <div style={{ fontSize: 10, color: "#556677", marginBottom: 8, letterSpacing: 1 }}>ADD STOCK</div>
-          <input
-            type="text" value={addStockIsin} onChange={(e) => setAddStockIsin(e.target.value.toUpperCase())}
-            placeholder="ISIN (e.g. INE467B01029)"
-            style={{ width: "100%", background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "8px 10px", fontSize: 11, outline: "none", marginBottom: 8 }}
-          />
-          <input
-            type="text" value={addStockName} onChange={(e) => setAddStockName(e.target.value)}
-            placeholder="Stock name"
-            style={{ width: "100%", background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "8px 10px", fontSize: 11, outline: "none", marginBottom: 8 }}
-          />
-          <button
-            onClick={handleAddStock} disabled={stockBusy}
-            style={{ width: "100%", background: "#00e5a022", color: "#00e5a0", border: "1px solid #00e5a055", borderRadius: 8, padding: "8px 10px", fontSize: 11, fontWeight: 700, cursor: stockBusy ? "not-allowed" : "pointer", opacity: stockBusy ? 0.6 : 1 }}
-          >
-            {stockBusy ? "ADDING..." : "ADD TO WATCHLIST"}
-          </button>
+          <div style={{ position: "relative" }}>
+            <input
+              type="text" value={liveQuery} onChange={(e) => setLiveQuery(e.target.value)}
+              placeholder="Search Live Upstox Equities..."
+              style={{ width: "100%", background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "8px 10px", fontSize: 11, outline: "none" }}
+            />
+            {searchLoading && (
+              <span style={{ position: "absolute", right: 10, top: 8, fontSize: 10, color: "#556677" }}>
+                Searching...
+              </span>
+            )}
+          </div>
+          
+          {showDropdown && searchResults.length > 0 && (
+            <div style={{
+              position: "absolute", top: "100%", left: 0, right: 0,
+              background: "#08101a", border: "1px solid #142234",
+              borderRadius: 8, marginTop: 4, zIndex: 50,
+              maxHeight: 180, overflowY: "auto",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
+            }}>
+              {searchResults.map((suggestion) => (
+                <div
+                  key={suggestion.isin}
+                  onClick={() => handleSelectSuggestion(suggestion)}
+                  style={{
+                    padding: "8px 12px", cursor: "pointer",
+                    borderBottom: "1px solid #142234", fontSize: 11,
+                    display: "flex", justifyContent: "space-between", alignItems: "center"
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "#142234"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                >
+                  <div>
+                    <div style={{ color: "#fff", fontWeight: 600 }}>{suggestion.trading_symbol}</div>
+                    <div style={{ color: "#556677", fontSize: 9 }}>{suggestion.name}</div>
+                  </div>
+                  <span style={{ color: "#00e5a0", fontSize: 9 }}>+ Add</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {showDropdown && searchResults.length === 0 && liveQuery.trim() !== "" && !searchLoading && (
+            <div style={{
+              position: "absolute", top: "100%", left: 0, right: 0,
+              background: "#08101a", border: "1px solid #142234",
+              borderRadius: 8, marginTop: 4, zIndex: 50,
+              padding: "10px", fontSize: 10, color: "#556677", textAlign: "center",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
+            }}>
+              No equities found
+            </div>
+          )}
+
           {(stockError || stockNotice) && (
             <div style={{ marginTop: 8, fontSize: 10, color: stockError ? "#fca5a5" : "#7cfccf" }}>
               {stockError || stockNotice}
@@ -338,7 +427,16 @@ export default function StockDashboard() {
                           }}>
                             <div style={{ padding: "12px 14px", borderRight: "1px solid #142234" }}>
                               <div style={{ fontWeight: 600, color: "#fff" }}>{pos.name}</div>
-                              <div style={{ fontSize: 9, color: "#556a84", marginTop: 2 }}>{pos.isin}</div>
+                              <div style={{ fontSize: 9, color: "#556a84", marginTop: 2, display: "flex", flexDirection: "column", gap: 2 }}>
+                                {pos.is_option && pos.expiry ? (
+                                  <>
+                                    <span style={{ color: "#8899aa" }}>Expiry: <span style={{ color: "#cde" }}>{pos.expiry}</span></span>
+                                    <span style={{ color: "#ffb077", fontWeight: 500 }}>({getDaysRemaining(pos.expiry)})</span>
+                                  </>
+                                ) : (
+                                  pos.isin
+                                )}
+                              </div>
                             </div>
                             <div style={{ padding: "12px 14px", borderRight: "1px solid #142234", fontFamily: "'Space Mono', monospace", color: "#9bb0c4" }}>
                               {formatINR(pos.cost_value)}
@@ -462,9 +560,15 @@ export default function StockDashboard() {
                                 }}>
                                   {trade.side}
                                 </span>
-                                {trade.isin}
+                                {trade.name || trade.isin}
                               </div>
                               <div style={{ fontSize: 9, color: "#556a84", marginTop: 4 }}>
+                                {trade.is_option && trade.expiry ? (
+                                  <div style={{ marginBottom: 4 }}>
+                                    <span style={{ color: "#8899aa" }}>Expiry: <span style={{ color: "#cde" }}>{trade.expiry}</span></span>
+                                    <span style={{ color: "#ffb077", marginLeft: 4 }}>({getDaysRemaining(trade.expiry)})</span>
+                                  </div>
+                                ) : null}
                                 {formatExactDateTime(trade.created_at)} ({formatPreciseRelativeTime(trade.created_at)})
                               </div>
                             </div>
@@ -542,13 +646,13 @@ export default function StockDashboard() {
             {/* Paper Trade */}
             <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: 18, marginBottom: 20 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <div style={{ fontSize: 11, color: "#667788", letterSpacing: 1 }}>PAPER TRADE · AMOUNT BASED</div>
+                <div style={{ fontSize: 11, color: "#667788", letterSpacing: 1 }}>PAPER TRADE · QUANTITY BASED</div>
                 <div style={{ fontSize: 12, color: "#00e5a0", fontWeight: 700 }}>Cash: {formatINR(paper.cash_balance)}</div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                 <input
-                  type="number" min="0" step="0.01" value={tradeAmount} onChange={(e) => setTradeAmount(e.target.value)}
-                  placeholder="Trade amount in INR"
+                  type="number" min="1" step="1" value={tradeAmount} onChange={(e) => setTradeAmount(e.target.value)}
+                  placeholder="Quantity (shares)"
                   style={{ background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "10px 12px", width: 220, outline: "none" }}
                 />
                 <input
@@ -578,6 +682,11 @@ export default function StockDashboard() {
                   SELL
                 </button>
               </div>
+              {tradeAmount && (
+                <div style={{ fontSize: 11, color: "#8899aa" }}>
+                  Est. Cost: <span style={{ color: "#00e5a0", fontWeight: 600 }}>{formatINR(Number(tradeAmount) * Number(tradePrice || todayPrice || data?.lastPrice || 0))}</span>
+                </div>
+              )}
               <div style={{ fontSize: 11, color: "#667788", marginBottom: 8 }}>
                 Default execution price is today price: <span style={{ color: "#9fe7ff" }}>{formatINR(todayPrice ?? data?.lastPrice)}</span>. You can edit this price before Buy/Sell.
               </div>

@@ -1,7 +1,18 @@
 import os
+import sys
+from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
+
+
+def _load_env_robust(override=False):
+    load_dotenv(override=override)
+    frozen = getattr(sys, "frozen", False)
+    if frozen:
+        exe_env = Path(sys.executable).parent / ".env"
+        if exe_env.exists():
+            load_dotenv(dotenv_path=str(exe_env), override=True)
 
 
 class UpstoxClient:
@@ -13,7 +24,7 @@ class UpstoxClient:
     BASE_URL = "https://api.upstox.com/v3"
 
     def __init__(self):
-        load_dotenv()
+        _load_env_robust()
         self.api_token = os.getenv("UPSTOX_API_TOKEN")
         if not self.api_token:
             raise ValueError("Missing UPSTOX_API_TOKEN in .env file")
@@ -33,7 +44,7 @@ class UpstoxClient:
         
         headers = self.headers.copy()
         if use_analytics_token:
-            load_dotenv(override=True)
+            _load_env_robust(override=True)
             analytics_token = os.getenv("UPSTOX_ANALYTICS_TOKEN")
             if analytics_token:
                 headers["Authorization"] = f"Bearer {analytics_token}"
@@ -109,7 +120,9 @@ class UpstoxClient:
         if expiry_date:
             params["expiry_date"] = expiry_date
 
-        data = self._make_request("/v2/option/contract", params=params, use_analytics_token=True)
+        data = self._make_request(
+            "/v2/option/contract", params=params, use_analytics_token=True
+        )
         return data.get("data", [])
 
     def get_option_chain(self, underlying_key, expiry_date):
@@ -140,5 +153,7 @@ class UpstoxClient:
         if segment:
             params["segment"] = segment
 
-        data = self._make_request("/v2/instruments/search", params=params, use_analytics_token=True)
+        data = self._make_request(
+            "/v2/instruments/search", params=params, use_analytics_token=True
+        )
         return data.get("data", [])

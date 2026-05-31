@@ -1,15 +1,18 @@
 from unittest.mock import patch
+
 from fastapi.testclient import TestClient
 
+# pyrefly: ignore [missing-import]
 from app.web import app
 
 client = TestClient(app)
 
 
 def test_root_endpoint():
-    response = client.get("/")
-    assert response.status_code == 200
-    assert "message" in response.json()
+    with patch("app.web.Path.exists", return_value=False):
+        response = client.get("/")
+        assert response.status_code == 200
+        assert "message" in response.json()
 
 
 def test_prediction_endpoint_requires_token():
@@ -52,6 +55,10 @@ def test_options_chain_endpoint():
                 "put_options": {"instrument_key": "NSE_FO|2"}
             }
         ]
+        mock_upstox_client.get_option_contracts.return_value = [
+            {"instrument_key": "NSE_FO|1", "lot_size": 50},
+            {"instrument_key": "NSE_FO|2", "lot_size": 50}
+        ]
 
         response = client.get("/api/options/chain?underlying_key=NIFTY&expiry_date=2026-06-25")
         assert response.status_code == 200
@@ -59,3 +66,25 @@ def test_options_chain_endpoint():
         assert json_data["underlying_key"] == "NSE_INDEX|Nifty 50"
         assert len(json_data["chain"]) == 1
         assert json_data["chain"][0]["strike_price"] == 25000
+        assert json_data["chain"][0]["call_options"]["lot_size"] == 50
+        assert json_data["chain"][0]["put_options"]["lot_size"] == 50
+
+
+def test_live_instrument_search_endpoint():
+    with patch("app.web.client") as mock_upstox_client:
+        mock_upstox_client.search_instruments.return_value = [
+            {
+                "isin": "INE002A01018",
+                "name": "RELIANCE INDUSTRIES LTD",
+                "trading_symbol": "RELIANCE",
+                "instrument_key": "NSE_EQ|INE002A01018"
+            }
+        ]
+
+        response = client.get("/api/instruments/search?q=RELIANCE")
+        assert response.status_code == 200
+        json_data = response.json()
+        assert "results" in json_data
+        assert len(json_data["results"]) == 1
+        assert json_data["results"][0]["isin"] == "INE002A01018"
+        assert json_data["results"][0]["name"] == "RELIANCE INDUSTRIES LTD"
