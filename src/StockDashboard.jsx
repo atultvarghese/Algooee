@@ -58,10 +58,11 @@ export default function StockDashboard() {
   }, [selected, todayPrice, data?.lastPrice]);
 
   const handlePlaceOrder = async (side) => {
-    const amount = Number(tradeAmount);
+    const qty = Number(tradeAmount);
     const fallbackPrice = Number(todayPrice ?? data?.lastPrice);
     const editedPrice = Number(tradePrice);
     const executionPrice = Number.isFinite(editedPrice) && editedPrice > 0 ? editedPrice : Number.isFinite(fallbackPrice) && fallbackPrice > 0 ? fallbackPrice : NaN;
+    const amount = qty * executionPrice;
 
     const success = await placePaperOrder(side, selected, amount, executionPrice);
     if (success) setTradeAmount("");
@@ -613,13 +614,13 @@ export default function StockDashboard() {
             {/* Paper Trade */}
             <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: 18, marginBottom: 20 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <div style={{ fontSize: 11, color: "#667788", letterSpacing: 1 }}>PAPER TRADE · AMOUNT BASED</div>
+                <div style={{ fontSize: 11, color: "#667788", letterSpacing: 1 }}>PAPER TRADE · QUANTITY BASED</div>
                 <div style={{ fontSize: 12, color: "#00e5a0", fontWeight: 700 }}>Cash: {formatINR(paper.cash_balance)}</div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                 <input
-                  type="number" min="0" step="0.01" value={tradeAmount} onChange={(e) => setTradeAmount(e.target.value)}
-                  placeholder="Trade amount in INR"
+                  type="number" min="1" step="1" value={tradeAmount} onChange={(e) => setTradeAmount(e.target.value)}
+                  placeholder="Quantity (shares)"
                   style={{ background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "10px 12px", width: 220, outline: "none" }}
                 />
                 <input
@@ -649,6 +650,11 @@ export default function StockDashboard() {
                   SELL
                 </button>
               </div>
+              {tradeAmount && (
+                <div style={{ fontSize: 11, color: "#8899aa" }}>
+                  Est. Cost: <span style={{ color: "#00e5a0", fontWeight: 600 }}>{formatINR(Number(tradeAmount) * Number(tradePrice || todayPrice || data?.lastPrice || 0))}</span>
+                </div>
+              )}
               <div style={{ fontSize: 11, color: "#667788", marginBottom: 8 }}>
                 Default execution price is today price: <span style={{ color: "#9fe7ff" }}>{formatINR(todayPrice ?? data?.lastPrice)}</span>. You can edit this price before Buy/Sell.
               </div>

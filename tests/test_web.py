@@ -55,6 +55,10 @@ def test_options_chain_endpoint():
                 "put_options": {"instrument_key": "NSE_FO|2"}
             }
         ]
+        mock_upstox_client.get_option_contracts.return_value = [
+            {"instrument_key": "NSE_FO|1", "lot_size": 50},
+            {"instrument_key": "NSE_FO|2", "lot_size": 50}
+        ]
 
         response = client.get("/api/options/chain?underlying_key=NIFTY&expiry_date=2026-06-25")
         assert response.status_code == 200
@@ -62,6 +66,8 @@ def test_options_chain_endpoint():
         assert json_data["underlying_key"] == "NSE_INDEX|Nifty 50"
         assert len(json_data["chain"]) == 1
         assert json_data["chain"][0]["strike_price"] == 25000
+        assert json_data["chain"][0]["call_options"]["lot_size"] == 50
+        assert json_data["chain"][0]["put_options"]["lot_size"] == 50
 
 
 def test_live_instrument_search_endpoint():

@@ -98,13 +98,21 @@ export default function OptionsChainView({
 
   const handlePlaceOrder = async () => {
     if (!tradeContract) return;
-    const amount = Number(tradeAmount);
+    const qty = Number(tradeAmount);
     const price = Number(tradePrice);
+    const lotSize = tradeContract.lotSize || 1;
+
+    if (qty <= 0 || qty % lotSize !== 0) {
+      setTradeNotice(`Quantity must be a multiple of the lot size (${lotSize})`);
+      return;
+    }
+
+    const finalAmount = qty * price;
 
     const success = await placePaperOrder(
       tradeContract.side,
       tradeContract.key,
-      amount,
+      finalAmount,
       price
     );
     if (success) {
@@ -286,14 +294,18 @@ export default function OptionsChainView({
                       <div style={{ padding: "6px 2px", borderRight: "1px solid #142234" }}>
                         {row.call_options && (
                           <button
-                            onClick={() => setTradeContract({
-                              key: row.call_options.instrument_key,
-                              symbol: `${underlying} ${row.strike_price} CE`,
-                              strike: row.strike_price,
-                              type: "CE",
-                              ltp: cMarket?.ltp || 0,
-                              side: "buy"
-                            })}
+                            onClick={() => {
+                              setTradeContract({
+                                key: row.call_options.instrument_key,
+                                symbol: `${underlying} ${row.strike_price} CE`,
+                                strike: row.strike_price,
+                                type: "CE",
+                                ltp: cMarket?.ltp || 0,
+                                side: "buy",
+                                lotSize: row.call_options.lot_size || 1
+                              });
+                              setTradeAmount(String(row.call_options.lot_size || 1));
+                            }}
                             style={{
                               background: "#00e5a015", color: "#00e5a0", border: "1px solid #00e5a044",
                               borderRadius: 4, padding: "4px 8px", fontSize: 9, cursor: "pointer", fontWeight: 700
@@ -317,14 +329,18 @@ export default function OptionsChainView({
                       <div style={{ padding: "6px 2px", borderRight: "1px solid #142234" }}>
                         {row.put_options && (
                           <button
-                            onClick={() => setTradeContract({
-                              key: row.put_options.instrument_key,
-                              symbol: `${underlying} ${row.strike_price} PE`,
-                              strike: row.strike_price,
-                              type: "PE",
-                              ltp: pMarket?.ltp || 0,
-                              side: "buy"
-                            })}
+                            onClick={() => {
+                              setTradeContract({
+                                key: row.put_options.instrument_key,
+                                symbol: `${underlying} ${row.strike_price} PE`,
+                                strike: row.strike_price,
+                                type: "PE",
+                                ltp: pMarket?.ltp || 0,
+                                side: "buy",
+                                lotSize: row.put_options.lot_size || 1
+                              });
+                              setTradeAmount(String(row.put_options.lot_size || 1));
+                            }}
                             style={{
                               background: "#00e5a015", color: "#00e5a0", border: "1px solid #00e5a044",
                               borderRadius: 4, padding: "4px 8px", fontSize: 9, cursor: "pointer", fontWeight: 700
@@ -388,6 +404,9 @@ export default function OptionsChainView({
                 Underlying Expiry: <span style={{ color: "#cde" }}>{selectedExpiry}</span>
               </div>
               <div style={{ fontSize: 11, color: "#556a84", marginTop: 4 }}>
+                Lot Size: <span style={{ color: "#cde" }}>{tradeContract.lotSize}</span>
+              </div>
+              <div style={{ fontSize: 11, color: "#556a84", marginTop: 4 }}>
                 Current LTP: <span style={{ color: "#00e5a0", fontWeight: 600 }}>{formatINR(tradeContract.ltp)}</span>
               </div>
             </div>
@@ -423,12 +442,12 @@ export default function OptionsChainView({
                 </div>
               </div>
 
-              {/* Amount input */}
+              {/* Quantity input */}
               <div>
-                <label style={{ display: "block", fontSize: 10, color: "#556a84", marginBottom: 6, fontWeight: 600 }}>INVESTMENT AMOUNT (INR)</label>
+                <label style={{ display: "block", fontSize: 10, color: "#556a84", marginBottom: 6, fontWeight: 600 }}>QUANTITY TO TRADE (LOT MULTIPLE)</label>
                 <input
-                  type="number" min="0" step="0.01" value={tradeAmount} onChange={(e) => setTradeAmount(e.target.value)}
-                  placeholder="E.g. 10000"
+                  type="number" min={tradeContract.lotSize} step={tradeContract.lotSize} value={tradeAmount} onChange={(e) => setTradeAmount(e.target.value)}
+                  placeholder={`E.g. ${tradeContract.lotSize}, ${tradeContract.lotSize * 2}, etc.`}
                   style={{
                     width: "100%", background: "#050b12", border: "1px solid #142234",
                     color: "#cde", borderRadius: 8, padding: "10px 12px",
@@ -461,6 +480,16 @@ export default function OptionsChainView({
                   </button>
                 </div>
               </div>
+
+              {/* Premium calculation */}
+              {tradeAmount && tradePrice && (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#9bb0c4", marginTop: 4 }}>
+                  <span>Est. Premium Cost:</span>
+                  <span style={{ color: "#9fe7ff", fontWeight: 600 }}>
+                    {formatINR(Number(tradeAmount) * Number(tradePrice))}
+                  </span>
+                </div>
+              )}
 
               {/* Balance view */}
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#556a84", marginTop: 4 }}>

@@ -704,10 +704,32 @@ async def get_options_chain(underlying_key: str, expiry_date: str):
 
     try:
         resolved_key = _resolve_underlying_key(underlying_key)
-        chain_data = client.get_option_chain(resolved_key, expiry_date)
+        chain_data = client.get_option_chain(resolved_key, expiry_date) or []
+
+        try:
+            contracts = client.get_option_contracts(resolved_key, expiry_date) or []
+            lot_map = {
+                c["instrument_key"]: c["lot_size"]
+                for c in contracts
+                if "instrument_key" in c and "lot_size" in c
+            }
+        except Exception:
+            lot_map = {}
+
+        for row in chain_data:
+            if "call_options" in row and row["call_options"]:
+                k = row["call_options"].get("instrument_key")
+                row["call_options"]["lot_size"] = lot_map.get(k, 1)
+            if "put_options" in row and row["put_options"]:
+                k = row["put_options"].get("instrument_key")
+                row["put_options"]["lot_size"] = lot_map.get(k, 1)
+
         return {"underlying_key": resolved_key, "expiry_date": expiry_date, "chain": chain_data}
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to fetch option chain: {str(e)}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to fetch option chain: {str(e)}",
+        )
 
 
 @app.get("/api/instruments/search", tags=["Reference"])
