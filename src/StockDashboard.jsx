@@ -12,6 +12,23 @@ const roundQty = (q) => {
   return Number.isFinite(n) ? +n.toFixed(4) : "0";
 };
 
+const getDaysRemaining = (expiryDateStr) => {
+  if (!expiryDateStr) return "";
+  const expiry = new Date(expiryDateStr);
+  const today = new Date();
+  
+  expiry.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+  
+  const diffTime = expiry - today;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (diffDays < 0) return "Expired";
+  if (diffDays === 0) return "Expires today";
+  if (diffDays === 1) return "1 day remaining";
+  return `${diffDays} days remaining`;
+};
+
 // Components (UPDATED IMPORTS)
 import { RiskMeter, ConfidenceRing, CustomTooltip } from "./components/CommonWidgets";
 import StockCard from "./components/StockCard";
@@ -410,7 +427,16 @@ export default function StockDashboard() {
                           }}>
                             <div style={{ padding: "12px 14px", borderRight: "1px solid #142234" }}>
                               <div style={{ fontWeight: 600, color: "#fff" }}>{pos.name}</div>
-                              <div style={{ fontSize: 9, color: "#556a84", marginTop: 2 }}>{pos.isin}</div>
+                              <div style={{ fontSize: 9, color: "#556a84", marginTop: 2, display: "flex", flexDirection: "column", gap: 2 }}>
+                                {pos.is_option && pos.expiry ? (
+                                  <>
+                                    <span style={{ color: "#8899aa" }}>Expiry: <span style={{ color: "#cde" }}>{pos.expiry}</span></span>
+                                    <span style={{ color: "#ffb077", fontWeight: 500 }}>({getDaysRemaining(pos.expiry)})</span>
+                                  </>
+                                ) : (
+                                  pos.isin
+                                )}
+                              </div>
                             </div>
                             <div style={{ padding: "12px 14px", borderRight: "1px solid #142234", fontFamily: "'Space Mono', monospace", color: "#9bb0c4" }}>
                               {formatINR(pos.cost_value)}
@@ -534,9 +560,15 @@ export default function StockDashboard() {
                                 }}>
                                   {trade.side}
                                 </span>
-                                {trade.isin}
+                                {trade.name || trade.isin}
                               </div>
                               <div style={{ fontSize: 9, color: "#556a84", marginTop: 4 }}>
+                                {trade.is_option && trade.expiry ? (
+                                  <div style={{ marginBottom: 4 }}>
+                                    <span style={{ color: "#8899aa" }}>Expiry: <span style={{ color: "#cde" }}>{trade.expiry}</span></span>
+                                    <span style={{ color: "#ffb077", marginLeft: 4 }}>({getDaysRemaining(trade.expiry)})</span>
+                                  </div>
+                                ) : null}
                                 {formatExactDateTime(trade.created_at)} ({formatPreciseRelativeTime(trade.created_at)})
                               </div>
                             </div>

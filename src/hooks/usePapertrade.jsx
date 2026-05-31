@@ -24,7 +24,7 @@ export default function usePaperTrade() {
     }
   }
 
-  async function placePaperOrder(side, selected, amount, executionPrice) {
+  async function placePaperOrder(side, selected, amount, executionPrice, optionSymbol = null, optionExpiry = null) {
     if (!selected) {
       setPaperError("Select a stock before placing an order.");
       return false;
@@ -43,7 +43,14 @@ export default function usePaperTrade() {
       const res = await fetch(`${API_BASE}/api/paper/trade`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isin: selected, side, amount, price: executionPrice }),
+        body: JSON.stringify({
+          isin: selected,
+          side,
+          amount,
+          price: executionPrice,
+          option_symbol: optionSymbol,
+          option_expiry: optionExpiry
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.detail || `Paper trade failed: ${res.status}`);

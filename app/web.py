@@ -64,6 +64,8 @@ class PaperOrderRequest(BaseModel):
     side: str
     amount: float
     price: Optional[float] = None
+    option_symbol: Optional[str] = None
+    option_expiry: Optional[str] = None
 
 
 class PaperResetRequest(BaseModel):
@@ -264,6 +266,7 @@ def _build_paper_portfolio_snapshot():
     stock_name_by_isin = {
         row["isin"]: row["name"] for row in PAPER_STORE.list_stocks(limit=2000)
     }
+    instrument_meta = PAPER_STORE.get_instrument_metadata()
 
     positions = []
     invested_cost = 0.0
@@ -292,11 +295,18 @@ def _build_paper_portfolio_snapshot():
         if as_of:
             price_as_of = as_of
 
+        meta = instrument_meta.get(isin, {})
+        name = meta.get("name") or stock_name_by_isin.get(isin, isin)
+        expiry = meta.get("expiry")
+        is_option = isin.startswith("NSE_FO|")
+
         positions.append(
             {
                 "id": holding["id"],
                 "isin": isin,
-                "name": stock_name_by_isin.get(isin, isin),
+                "name": name,
+                "expiry": expiry,
+                "is_option": is_option,
                 "quantity": round(qty, 6),
                 "avg_price": round(avg_price, 4),
                 "current_price": round(mark_price, 4),
@@ -315,6 +325,22 @@ def _build_paper_portfolio_snapshot():
     total_pnl = realized_pnl + unrealized_pnl
     pnl_vs_funded = equity - total_funded
 
+    enriched_trades = []
+    for trade in PAPER_STORE.list_trades(limit=100):
+        isin = trade["isin"]
+        meta = instrument_meta.get(isin, {})
+        name = meta.get("name") or stock_name_by_isin.get(isin, isin)
+        expiry = meta.get("expiry")
+        is_option = isin.startswith("NSE_FO|")
+        enriched_trades.append(
+            {
+                **dict(trade),
+                "name": name,
+                "expiry": expiry,
+                "is_option": is_option,
+            }
+        )
+
     return {
         "cash_balance": round(cash_balance, 2),
         "total_funded": round(total_funded, 2),
@@ -328,7 +354,7 @@ def _build_paper_portfolio_snapshot():
         "day_pnl": round(day_pnl, 2),
         "price_as_of": price_as_of,
         "positions": positions,
-        "trades": PAPER_STORE.list_trades(limit=100),
+        "trades": enriched_trades,
         "cash_flows": PAPER_STORE.list_ledger(limit=100),
     }
 
@@ -617,6 +643,13 @@ async def paper_place_trade(request: PaperOrderRequest):
             raise HTTPException(
                 status_code=400,
                 detail="Could not resolve execution price. Ensure market data is available.",
+            )
+
+        if request.option_symbol:
+            PAPER_STORE.set_instrument_metadata(
+                isin=request.isin,
+                name=request.option_symbol,
+                expiry=request.option_expiry,
             )
 
         order = PAPER_STORE.place_order(

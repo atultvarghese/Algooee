@@ -90,6 +90,14 @@ class PaperTradeStore:
                 )
                 """)
             conn.execute("""
+                CREATE TABLE IF NOT EXISTS instrument_metadata (
+                    isin TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    expiry TEXT,
+                    created_at TEXT NOT NULL
+                )
+                """)
+            conn.execute("""
                 INSERT OR IGNORE INTO wallet (id, cash_balance, updated_at)
                 VALUES (1, 0, datetime('now'))
                 """)
@@ -367,6 +375,7 @@ class PaperTradeStore:
                 conn.execute("DELETE FROM holdings")
                 conn.execute("DELETE FROM trades")
                 conn.execute("DELETE FROM wallet_ledger")
+                conn.execute("DELETE FROM instrument_metadata")
                 conn.execute(
                     "UPDATE wallet SET cash_balance = ?, updated_at = datetime('now')"
                     " WHERE id = 1",
@@ -381,3 +390,28 @@ class PaperTradeStore:
                         (cash,),
                     )
                 conn.commit()
+
+    def set_instrument_metadata(
+        self, isin: str, name: str, expiry: Optional[str] = None
+    ) -> None:
+        with self._lock:
+            with self._connect() as conn:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO instrument_metadata (isin, name, expiry, created_at)
+                    VALUES (?, ?, ?, datetime('now'))
+                    """,
+                    (isin, name, expiry),
+                )
+                conn.commit()
+
+    def get_instrument_metadata(self) -> Dict[str, Dict]:
+        with self._lock:
+            with self._connect() as conn:
+                rows = conn.execute(
+                    "SELECT isin, name, expiry FROM instrument_metadata"
+                ).fetchall()
+                return {
+                    row["isin"]: {"name": row["name"], "expiry": row["expiry"]}
+                    for row in rows
+                }

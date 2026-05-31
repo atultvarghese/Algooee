@@ -113,7 +113,9 @@ export default function OptionsChainView({
       tradeContract.side,
       tradeContract.key,
       finalAmount,
-      price
+      price,
+      tradeContract.symbol,
+      selectedExpiry
     );
     if (success) {
       setTradeNotice(`Option ${tradeContract.side.toUpperCase()} order executed!`);
