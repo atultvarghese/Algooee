@@ -377,7 +377,7 @@ export default function StockDashboard() {
                       { label: "Cash Balance", value: formatINR(paper.cash_balance), color: "#00e5a0", desc: "Available for trading" },
                       { label: "Total Invested", value: formatINR(paper.invested_cost), color: "#9fe7ff", desc: "Capital in holdings" },
                       { label: "Market Value", value: formatINR(paper.market_value), color: "#4a9eff", desc: "Current holdings value" },
-                      { label: "Total Profit / Loss", value: formatINR(paper.total_pnl), color: (paper.total_pnl ?? 0) >= 0 ? "#00e5a0" : "#ef4444", desc: "All-time realized + unrealized" },
+                      { label: "Total Profit / Loss", value: formatINR(paper.total_pnl), color: (paper.total_pnl ?? 0) >= 0 ? "#00e5a0" : "#ef4444", desc: "Unrealized P/L of open positions" },
                     ].map((item) => (
                       <div key={item.label} style={{
                         background: "#08101a", border: "1px solid #142234",

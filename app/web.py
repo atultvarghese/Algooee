@@ -322,7 +322,7 @@ def _build_paper_portfolio_snapshot():
     positions.sort(key=lambda row: row["market_value"], reverse=True)
 
     equity = cash_balance + market_value
-    total_pnl = realized_pnl + unrealized_pnl
+    total_pnl = unrealized_pnl
     pnl_vs_funded = equity - total_funded
 
     enriched_trades = []
