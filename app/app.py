@@ -51,6 +51,17 @@ class UpstoxClient:
 
         response = requests.get(url, headers=headers, params=params)
 
+        # Fallback to analytics token if regular request fails with 401 and we haven't already used it
+        if response.status_code == 401 and not use_analytics_token:
+            _load_env_robust(override=True)
+            analytics_token = os.getenv("UPSTOX_ANALYTICS_TOKEN")
+            if analytics_token:
+                fallback_headers = self.headers.copy()
+                fallback_headers["Authorization"] = f"Bearer {analytics_token}"
+                fallback_response = requests.get(url, headers=fallback_headers, params=params)
+                if fallback_response.status_code == 200:
+                    return fallback_response.json()
+
         if response.status_code == 200:
             return response.json()
         else:
@@ -69,7 +80,11 @@ class UpstoxClient:
         :param exchange: Exchange type (default NSE_EQ)
         :return: List of candles (if successful)
         """
-        encoded_symbol = f"{exchange}%7C{isin}"
+        if "|" in isin:
+            exchange_part, isin_part = isin.split("|", 1)
+        else:
+            exchange_part, isin_part = exchange, isin
+        encoded_symbol = f"{exchange_part}%7C{isin_part}"
         endpoint = (
             f"/historical-candle/{encoded_symbol}/{interval}s/{count}/{end_date}/{start_date}"
         )
@@ -103,7 +118,11 @@ class UpstoxClient:
         :param exchange: Exchange type (default NSE_EQ)
         :return: List of intraday candles (if successful)
         """
-        encoded_symbol = f"{exchange}%7C{isin}"
+        if "|" in isin:
+            exchange_part, isin_part = isin.split("|", 1)
+        else:
+            exchange_part, isin_part = exchange, isin
+        encoded_symbol = f"{exchange_part}%7C{isin_part}"
         endpoint = f"/historical-candle/intraday/{encoded_symbol}/{interval}/{count}"
 
         data = self._make_request(endpoint)

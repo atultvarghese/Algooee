@@ -27,10 +27,10 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Allow the frontend dev servers to access this API (Vite default ports)
+# Allow the frontend dev servers to access this API (Vite default ports and local network IPs)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -322,7 +322,7 @@ def _build_paper_portfolio_snapshot():
     positions.sort(key=lambda row: row["market_value"], reverse=True)
 
     equity = cash_balance + market_value
-    total_pnl = realized_pnl + unrealized_pnl
+    total_pnl = unrealized_pnl
     pnl_vs_funded = equity - total_funded
 
     enriched_trades = []
