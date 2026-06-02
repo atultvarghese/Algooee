@@ -14,6 +14,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tempfile
 
 
 def print_step(title):
@@ -64,10 +65,26 @@ def main():
     # Step 2: Build the Vite frontend
     print_step("Compiling Frontend Static Assets (Vite)")
     build_cmd = ["npm", "run", "build"]
-    if system_os == "Windows":
-        run_command(build_cmd, shell=True)
-    else:
-        run_command(build_cmd)
+
+    temp_db_path = None
+    dist_db_path = os.path.join("dist", "paper_trade.db")
+    if os.path.exists(dist_db_path):
+        temp_db_fd, temp_db_path = tempfile.mkstemp(prefix="paper_trade_", suffix=".db")
+        os.close(temp_db_fd)
+        shutil.copy2(dist_db_path, temp_db_path)
+        print("Preserved existing 'dist/paper_trade.db' before frontend build.")
+
+    try:
+        if system_os == "Windows":
+            run_command(build_cmd, shell=True)
+        else:
+            run_command(build_cmd)
+    finally:
+        if temp_db_path and os.path.exists(temp_db_path):
+            os.makedirs("dist", exist_ok=True)
+            shutil.copy2(temp_db_path, dist_db_path)
+            os.remove(temp_db_path)
+            print("Restored 'dist/paper_trade.db' after frontend build.")
 
     if not os.path.exists("dist"):
         print("Error: 'dist' folder was not created by the frontend build. Cannot proceed.")
