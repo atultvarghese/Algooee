@@ -38,6 +38,16 @@ export default function StockDashboard() {
   const [activePage, setActivePage] = useState("stock");
   const [optionUnderlying, setOptionUnderlying] = useState("NIFTY");
   const [selectedOptionContract, setSelectedOptionContract] = useState(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [showWatchlist, setShowWatchlist] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // Local Form UI States
   const [tradeAmount, setTradeAmount] = useState("");
@@ -186,21 +196,49 @@ export default function StockDashboard() {
   return (
     <div style={{
       minHeight: "100vh", background: "#060e17", color: "#cde", fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
-      display: "grid", gridTemplateColumns: "280px 1fr", gridTemplateRows: "60px 1fr"
+      display: "grid", gridTemplateColumns: isMobile ? "1fr" : "280px 1fr", gridTemplateRows: isMobile ? "auto auto 1fr" : "60px 1fr"
     }}>
       {/* Header */}
-      <div style={{ gridColumn: "1/-1", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 28px", borderBottom: "1px solid #1a2a3a", background: "#07101a" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-            <img src="/logo.png" alt="ALGOOEE" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/logo.svg'; }} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+      <div style={{
+        gridColumn: "1/-1", display: "flex", flexWrap: "wrap",
+        flexDirection: isMobile ? "column" : "row",
+        alignItems: isMobile ? "stretch" : "center",
+        justifyContent: "space-between",
+        padding: isMobile ? "12px 16px" : "0 28px",
+        borderBottom: "1px solid #1a2a3a", background: "#07101a",
+        gap: isMobile ? 12 : 16,
+        height: isMobile ? "auto" : "60px"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+              <img src="/logo.png" alt="ALGOOEE" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/logo.svg'; }} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+            </div>
+            <div>
+              <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700, color: "#fff", letterSpacing: -0.5 }}>Algooee</span>
+              <span style={{ fontSize: 10, color: "#445566", marginLeft: 8, letterSpacing: 2 }}>STOCK INTELLIGENCE</span>
+            </div>
           </div>
-          <div>
-            <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700, color: "#fff", letterSpacing: -0.5 }}>Algooee</span>
-            <span style={{ fontSize: 10, color: "#445566", marginLeft: 8, letterSpacing: 2 }}>STOCK INTELLIGENCE</span>
-          </div>
+          {isMobile && (
+            <button
+              onClick={() => setShowWatchlist(!showWatchlist)}
+              style={{
+                background: "#0a1520", color: "#778899", border: "1px solid #1a2a3a",
+                borderRadius: 8, padding: "6px 12px", fontSize: 10, fontWeight: 700, cursor: "pointer"
+              }}
+            >
+              {showWatchlist ? "HIDE WATCHLIST" : "SHOW WATCHLIST"}
+            </button>
+          )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ display: "flex", gap: 8 }}>
+        <div style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          justifyContent: isMobile ? "space-between" : "flex-end",
+          gap: isMobile ? 10 : 16
+        }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             <button
               onClick={() => setActivePage("stock")}
               style={{
@@ -235,17 +273,26 @@ export default function StockDashboard() {
               ADMIN PAGE
             </button>
           </div>
-          <div style={{ fontSize: 11, color: "#8899aa" }}>Wallet: <span style={{ color: "#00e5a0", fontWeight: 700 }}>{formatINR(paper.cash_balance)}</span></div>
-          <div style={{ fontSize: 11, color: "#445566" }}>DATA SOURCE</div>
-          <div style={{ background: "#1a2a3a", border: "1px solid #2a3a4a", color: "#778899", borderRadius: 20, padding: "4px 14px", fontSize: 11, fontWeight: 600, letterSpacing: 1 }}>
-            LIVE API
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 11, color: "#8899aa" }}>Wallet: <span style={{ color: "#00e5a0", fontWeight: 700 }}>{formatINR(paper.cash_balance)}</span></div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ background: "#1a2a3a", border: "1px solid #2a3a4a", color: "#778899", borderRadius: 20, padding: "4px 14px", fontSize: 10, fontWeight: 600, letterSpacing: 1 }}>
+                LIVE API
+              </div>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#00e5a0", boxShadow: "0 0 8px #00e5a0", animation: "pulse 2s infinite" }} />
+            </div>
           </div>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#00e5a0", boxShadow: "0 0 8px #00e5a0", animation: "pulse 2s infinite" }} />
         </div>
       </div>
 
       {/* Sidebar */}
-      <div style={{ borderRight: "1px solid #1a2a3a", padding: 16, overflowY: "auto", background: "#07101a" }}>
+      {(!isMobile || showWatchlist) && (
+        <div style={{
+          borderRight: isMobile ? "none" : "1px solid #1a2a3a",
+          borderBottom: isMobile ? "1px solid #1a2a3a" : "none",
+          padding: 16, overflowY: "auto", background: "#07101a",
+          maxHeight: isMobile ? "300px" : "none"
+        }}>
         <div style={{ fontSize: 10, color: "#445566", letterSpacing: 2, marginBottom: 12, paddingLeft: 4 }}>WATCHLIST</div>
         <div style={{ marginBottom: 10 }}>
           <input
@@ -332,9 +379,10 @@ export default function StockDashboard() {
           {!visibleStocks.length && <div style={{ color: "#556677", fontSize: 11, padding: "6px 4px" }}>No stocks found.</div>}
         </div>
       </div>
+      )}
 
       {/* Main content */}
-      <div style={{ overflowY: "auto", padding: "24px 28px" }}>
+      <div style={{ overflowY: "auto", padding: isMobile ? "16px 12px" : "24px 28px" }}>
         {activePage === "options" ? (
           <OptionsChainView
             stocks={stocks}
@@ -346,6 +394,7 @@ export default function StockDashboard() {
             formatINR={formatINR}
             selectedOptionContract={selectedOptionContract}
             setSelectedOptionContract={setSelectedOptionContract}
+            isMobile={isMobile}
           />
         ) : activePage === "admin" ? (
           paperLoading && !paperPortfolio ? (
@@ -369,13 +418,13 @@ export default function StockDashboard() {
               )}
 
               {/* Main Grid: Left for portfolio holdings, Right for actions & logs */}
-              <div style={{ display: "grid", gridTemplateColumns: "2.1fr 1fr", gap: "24px", alignItems: "start" }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "2.1fr 1fr", gap: "24px", alignItems: "start" }}>
 
                 {/* Left Side: Metrics & Positions */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
 
                   {/* Metric Cards */}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 12 }}>
                     {[
                       { label: "Cash Balance", value: formatINR(paper.cash_balance), color: "#00e5a0", desc: "Available for trading" },
                       { label: "Total Invested", value: formatINR(paper.invested_cost), color: "#9fe7ff", desc: "Capital in holdings" },
@@ -406,7 +455,8 @@ export default function StockDashboard() {
                     </div>
 
                     {(paper.positions || []).length ? (
-                      <div style={{ border: "1px solid #142234", borderRadius: 8, overflow: "hidden" }}>
+                      <div style={{ overflowX: "auto" }}>
+                        <div style={{ border: "1px solid #142234", borderRadius: 8, overflow: "hidden", minWidth: isMobile ? "750px" : "auto" }}>
                         <div style={{
                           display: "grid",
                           gridTemplateColumns: "1.3fr 1.1fr 1.0fr 0.9fr 1.0fr 1.2fr 0.9fr",
@@ -557,6 +607,7 @@ export default function StockDashboard() {
                             </div>
                           </div>
                         ))}
+                        </div>
                       </div>
                     ) : (
                       <div style={{
@@ -707,7 +758,7 @@ export default function StockDashboard() {
             )}
 
             {/* Stock header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+            <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", gap: isMobile ? 12 : 0, marginBottom: 24 }}>
               <div>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
                   {(() => {
@@ -745,16 +796,16 @@ export default function StockDashboard() {
                 <div style={{ fontSize: 11, color: "#667788", letterSpacing: 1 }}>PAPER TRADE · QUANTITY BASED</div>
                 <div style={{ fontSize: 12, color: "#00e5a0", fontWeight: 700 }}>Cash: {formatINR(paper.cash_balance)}</div>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+              <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "center", gap: 10, marginBottom: 10 }}>
                 <input
                   type="number" min="1" step="1" value={tradeAmount} onChange={(e) => setTradeAmount(e.target.value)}
                   placeholder="Quantity (shares)"
-                  style={{ background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "10px 12px", width: 220, outline: "none" }}
+                  style={{ background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "10px 12px", width: isMobile ? "100%" : 220, outline: "none" }}
                 />
                 <input
                   type="number" min="0" step="0.01" value={tradePrice} onChange={(e) => setTradePrice(e.target.value)}
                   placeholder="Execution price"
-                  style={{ background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "10px 12px", width: 170, outline: "none" }}
+                  style={{ background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "10px 12px", width: isMobile ? "100%" : 170, outline: "none" }}
                 />
                 <button
                   onClick={() => {
@@ -819,7 +870,7 @@ export default function StockDashboard() {
             {/* Prediction Details */}
             <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: 20, marginBottom: 20 }}>
               <div style={{ fontSize: 10, color: "#445566", letterSpacing: 2, marginBottom: 14 }}>PREDICTION DETAILS</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 12, marginBottom: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(6, minmax(0, 1fr))", gap: 12, marginBottom: 16 }}>
                 {[
                   { label: "Next Day Range", value: `${formatINR(data.p10)} - ${formatINR(data.p90)}`, note: "p10 to p90" },
                   { label: "Backtest MAE", value: formatINR(avgBacktestAbsError), note: `${summary.rows || backtestRows.length || 0} walk-forward rows` },
@@ -857,7 +908,8 @@ export default function StockDashboard() {
                 )}
               </div>
 
-              <div style={{ border: "1px solid #1a2a3a", borderRadius: 8, overflow: "hidden", marginTop: 16 }}>
+              <div style={{ overflowX: "auto" }}>
+                <div style={{ border: "1px solid #1a2a3a", borderRadius: 8, overflow: "hidden", minWidth: isMobile ? "500px" : "auto", marginTop: 16 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 0.8fr", gap: 0, background: "#081321", color: "#667788", fontSize: 10, letterSpacing: 1, textTransform: "uppercase" }}>
                   <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a" }}>Backtest</div>
                   <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a" }}>Actual</div>
@@ -882,11 +934,12 @@ export default function StockDashboard() {
                 ) : (
                   <div style={{ padding: "12px", color: "#556677", fontSize: 12 }}>No backtest data available.</div>
                 )}
+                </div>
               </div>
             </div>
 
             {/* Stats row */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 16, marginBottom: 20 }}>
               {/* Trend */}
               <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: 18 }}>
                 <div style={{ fontSize: 10, color: "#445566", letterSpacing: 2, marginBottom: 12 }}>TREND ANALYSIS</div>
@@ -928,7 +981,7 @@ export default function StockDashboard() {
             {/* Technical Indicators */}
             <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: 20 }}>
               <div style={{ fontSize: 10, color: "#445566", letterSpacing: 2, marginBottom: 16 }}>TECHNICAL INDICATORS</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)", gap: 12 }}>
                 {[
                   { label: "RSI (14)", value: data.indicators.rsi, note: data.indicators.rsi > 70 ? "Overbought" : data.indicators.rsi < 30 ? "Oversold" : "Neutral", color: data.indicators.rsi > 70 ? "#f87171" : data.indicators.rsi < 30 ? "#4ade80" : "#facc15" },
                   { label: "MACD", value: data.indicators.macd, note: data.indicators.macd > 0 ? "Bullish" : "Bearish", color: data.indicators.macd > 0 ? "#4ade80" : "#f87171" },
@@ -951,6 +1004,11 @@ export default function StockDashboard() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600&display=swap');
         * { box-sizing: border-box; }
+        body {
+          margin: 0;
+          padding: 0;
+          background: #060e17;
+        }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: #07101a; }
         ::-webkit-scrollbar-thumb { background: #1a2a3a; border-radius: 2px; }

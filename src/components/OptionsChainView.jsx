@@ -10,7 +10,8 @@ export default function OptionsChainView({
   placePaperOrder,
   formatINR,
   selectedOptionContract,
-  setSelectedOptionContract
+  setSelectedOptionContract,
+  isMobile = false
 }) {
   const [underlying, setUnderlying] = useState(selectedUnderlying || "NIFTY");
   const [expiries, setExpiries] = useState([]);
@@ -185,11 +186,13 @@ export default function OptionsChainView({
       {/* Expiry and Underlying Selectors */}
       <div style={{
         background: "#08101a", border: "1px solid #142234",
-        borderRadius: 12, padding: "18px 24px",
-        display: "flex", justifyContent: "space-between", alignItems: "center",
+        borderRadius: 12, padding: isMobile ? "16px" : "18px 24px",
+        display: "flex", flexDirection: isMobile ? "column" : "row",
+        alignItems: isMobile ? "stretch" : "center", justifyContent: "space-between",
+        gap: isMobile ? 16 : 20,
         boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
       }}>
-        <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+        <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 12 : 20, alignItems: isMobile ? "stretch" : "center" }}>
           <div>
             <label style={{ display: "block", fontSize: 10, color: "#556a84", marginBottom: 6, fontWeight: 600, letterSpacing: 1 }}>UNDERLYING</label>
             <select
@@ -201,7 +204,8 @@ export default function OptionsChainView({
               style={{
                 background: "#050b12", border: "1px solid #142234",
                 color: "#cde", borderRadius: 8, padding: "8px 12px",
-                fontSize: 12, outline: "none", cursor: "pointer"
+                fontSize: 12, outline: "none", cursor: "pointer",
+                width: isMobile ? "100%" : "auto"
               }}
             >
               {underlyingOptions.map(opt => (
@@ -219,7 +223,8 @@ export default function OptionsChainView({
               style={{
                 background: "#050b12", border: "1px solid #142234",
                 color: "#cde", borderRadius: 8, padding: "8px 12px",
-                fontSize: 12, outline: "none", cursor: "pointer"
+                fontSize: 12, outline: "none", cursor: "pointer",
+                width: isMobile ? "100%" : "auto"
               }}
             >
               {expiries.map(exp => (
@@ -231,20 +236,28 @@ export default function OptionsChainView({
 
         {/* Spot and PCR Overview */}
         {spotPrice && (
-          <div style={{ display: "flex", gap: 24 }}>
-            <div style={{ textAlign: "right" }}>
+          <div style={{
+            display: "flex", flexDirection: "row", flexWrap: "wrap",
+            justifyContent: isMobile ? "space-between" : "flex-end",
+            gap: isMobile ? 16 : 24,
+            borderTop: isMobile ? "1px solid #142234" : "none",
+            paddingTop: isMobile ? 12 : 0,
+            marginTop: isMobile ? 4 : 0,
+            width: isMobile ? "100%" : "auto"
+          }}>
+            <div style={{ textAlign: isMobile ? "left" : "right", flex: isMobile ? "1 1 40%" : "auto" }}>
               <div style={{ fontSize: 10, color: "#556a84", letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>Spot Price</div>
               <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700, color: "#00e5a0", marginTop: 4 }}>
                 {formatINR(spotPrice)}
               </div>
             </div>
-            <div style={{ textAlign: "right" }}>
+            <div style={{ textAlign: isMobile ? "left" : "right", flex: isMobile ? "1 1 40%" : "auto" }}>
               <div style={{ fontSize: 10, color: "#556a84", letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>Put-Call Ratio (PCR)</div>
               <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700, color: "#9fe7ff", marginTop: 4 }}>
                 {pcrRatio}
               </div>
             </div>
-            <div style={{ textAlign: "right" }}>
+            <div style={{ textAlign: isMobile ? "left" : "right", flex: isMobile ? "1 1 40%" : "auto" }}>
               <div style={{ fontSize: 10, color: "#556a84", letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>Call / Put OI</div>
               <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, fontWeight: 600, color: "#cde", marginTop: 6 }}>
                 {(totalCallOI / 100000).toFixed(1)}L / {(totalPutOI / 100000).toFixed(1)}L
@@ -255,7 +268,7 @@ export default function OptionsChainView({
       </div>
 
       {/* Main Option Chain & Trade Panel Split */}
-      <div style={{ display: "grid", gridTemplateColumns: tradeContract ? "1fr 340px" : "1fr", gap: "24px", alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: (tradeContract && !isMobile) ? "1fr 340px" : "1fr", gap: "24px", alignItems: "start" }}>
         
         {/* Left Side: Option Chain Table */}
         <div style={{
@@ -277,7 +290,7 @@ export default function OptionsChainView({
               Select an underlying and expiry date to load the option chain.
             </div>
           ) : (
-            <div>
+            <div style={{ minWidth: isMobile ? "900px" : "auto" }}>
               {/* Option Chain Headers */}
               <div style={{
                 display: "grid",
@@ -418,9 +431,9 @@ export default function OptionsChainView({
         {tradeContract && (
           <div style={{
             background: "#08101a", border: "1px solid #142234",
-            borderRadius: 12, padding: "20px",
+            borderRadius: 12, padding: isMobile ? "16px" : "20px",
             boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)",
-            position: "sticky", top: 20
+            position: isMobile ? "static" : "sticky", top: 20
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <div style={{ fontSize: 12, color: "#fff", fontWeight: 700, letterSpacing: 1 }}>PAPER TRADE OPTION</div>
