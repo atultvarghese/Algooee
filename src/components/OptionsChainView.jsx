@@ -8,7 +8,9 @@ export default function OptionsChainView({
   paper,
   paperBusy,
   placePaperOrder,
-  formatINR
+  formatINR,
+  selectedOptionContract,
+  setSelectedOptionContract
 }) {
   const [underlying, setUnderlying] = useState(selectedUnderlying || "NIFTY");
   const [expiries, setExpiries] = useState([]);
@@ -31,6 +33,13 @@ export default function OptionsChainView({
     ...stocks.map(s => ({ value: s.ticker, label: `${s.name} (${s.ticker})` }))
   ];
 
+  // Sync underlying from parent selection
+  useEffect(() => {
+    if (selectedUnderlying) {
+      setUnderlying(selectedUnderlying);
+    }
+  }, [selectedUnderlying]);
+
   // Fetch expiries whenever underlying changes
   useEffect(() => {
     async function fetchExpiries() {
@@ -45,7 +54,9 @@ export default function OptionsChainView({
         }
         const json = await resp.json();
         setExpiries(json.expiries || []);
-        if (json.expiries && json.expiries.length > 0) {
+        if (selectedOptionContract && json.expiries && json.expiries.includes(selectedOptionContract.expiry)) {
+          setSelectedExpiry(selectedOptionContract.expiry);
+        } else if (json.expiries && json.expiries.length > 0) {
           setSelectedExpiry(json.expiries[0]);
         } else {
           setSelectedExpiry("");
@@ -59,7 +70,7 @@ export default function OptionsChainView({
       }
     }
     fetchExpiries();
-  }, [underlying]);
+  }, [underlying, selectedOptionContract]);
 
   // Fetch option chain whenever underlying or selectedExpiry changes
   useEffect(() => {
@@ -88,6 +99,37 @@ export default function OptionsChainView({
     }
     fetchOptionChain();
   }, [underlying, selectedExpiry]);
+
+  // Pre-select options contract from admin page
+  useEffect(() => {
+    if (selectedOptionContract && chain.length > 0) {
+      const matchingRow = chain.find(row => {
+        if (selectedOptionContract.type === "CE") {
+          return row.call_options?.instrument_key === selectedOptionContract.key;
+        } else {
+          return row.put_options?.instrument_key === selectedOptionContract.key;
+        }
+      });
+
+      if (matchingRow) {
+        const option = selectedOptionContract.type === "CE" ? matchingRow.call_options : matchingRow.put_options;
+        const market = option?.market_data;
+        if (option) {
+          setTradeContract({
+            key: option.instrument_key,
+            symbol: option.trading_symbol || `${underlying} ${matchingRow.strike_price} ${selectedOptionContract.type}`,
+            strike: matchingRow.strike_price,
+            type: selectedOptionContract.type,
+            ltp: market?.ltp || selectedOptionContract.ltp || 0,
+            side: "buy",
+            lotSize: option.lot_size || 1
+          });
+          setTradeAmount(String(option.lot_size || 1));
+          setSelectedOptionContract(null);
+        }
+      }
+    }
+  }, [selectedOptionContract, chain, underlying, setSelectedOptionContract]);
 
   // Set default execution price when contract to trade changes
   useEffect(() => {

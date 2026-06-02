@@ -37,6 +37,7 @@ import OptionsChainView from "./components/OptionsChainView";
 export default function StockDashboard() {
   const [activePage, setActivePage] = useState("stock");
   const [optionUnderlying, setOptionUnderlying] = useState("NIFTY");
+  const [selectedOptionContract, setSelectedOptionContract] = useState(null);
 
   // Local Form UI States
   const [tradeAmount, setTradeAmount] = useState("");
@@ -343,6 +344,8 @@ export default function StockDashboard() {
             paperBusy={paperBusy}
             placePaperOrder={placePaperOrder}
             formatINR={formatINR}
+            selectedOptionContract={selectedOptionContract}
+            setSelectedOptionContract={setSelectedOptionContract}
           />
         ) : activePage === "admin" ? (
           paperLoading && !paperPortfolio ? (
@@ -406,7 +409,7 @@ export default function StockDashboard() {
                       <div style={{ border: "1px solid #142234", borderRadius: 8, overflow: "hidden" }}>
                         <div style={{
                           display: "grid",
-                          gridTemplateColumns: "1.4fr 1.2fr 1.1fr 1fr 1.1fr 1.6fr",
+                          gridTemplateColumns: "1.3fr 1.1fr 1.0fr 0.9fr 1.0fr 1.2fr 0.9fr",
                           background: "#0c1827", color: "#556a84",
                           fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase"
                         }}>
@@ -415,12 +418,13 @@ export default function StockDashboard() {
                           <div style={{ padding: "12px 14px", borderRight: "1px solid #142234" }}>Avg Cost</div>
                           <div style={{ padding: "12px 14px", borderRight: "1px solid #142234" }}>Current</div>
                           <div style={{ padding: "12px 14px", borderRight: "1px solid #142234" }}>Unrealized P/L</div>
-                          <div style={{ padding: "12px 14px" }}>Purchase Date & Recency</div>
+                          <div style={{ padding: "12px 14px", borderRight: "1px solid #142234" }}>Purchase Date & Recency</div>
+                          <div style={{ padding: "12px 14px", textAlign: "center" }}>Action</div>
                         </div>
                         {(paper.positions || []).map((pos) => (
                           <div key={pos.id || pos.isin} style={{
                             display: "grid",
-                            gridTemplateColumns: "1.4fr 1.2fr 1.1fr 1fr 1.1fr 1.6fr",
+                            gridTemplateColumns: "1.3fr 1.1fr 1.0fr 0.9fr 1.0fr 1.2fr 0.9fr",
                             borderTop: "1px solid #142234", fontSize: 12,
                             background: "#08101a", color: "#cde",
                             alignItems: "center"
@@ -455,9 +459,101 @@ export default function StockDashboard() {
                             }}>
                               {formatINR(pos.unrealized_pnl)}
                             </div>
-                            <div style={{ padding: "12px 14px", color: "#9bb0c4" }}>
+                            <div style={{ padding: "12px 14px", borderRight: "1px solid #142234", color: "#9bb0c4" }}>
                               <div style={{ color: "#fff", fontFamily: "'Space Mono', monospace" }}>{formatExactDateTime(pos.updated_at)}</div>
                               <div style={{ fontSize: 10, color: "#00e5a0", marginTop: 2 }}>{formatPreciseRelativeTime(pos.updated_at)}</div>
+                            </div>
+                            <div style={{ padding: "8px 6px", display: "flex", gap: "4px", justifyContent: "center" }}>
+                              <button
+                                onClick={() => {
+                                  if (pos.is_option) {
+                                    const underlying = pos.name.split(" ")[0];
+                                    setOptionUnderlying(underlying);
+                                    setSelectedOptionContract({
+                                      key: pos.isin,
+                                      symbol: pos.name,
+                                      underlying: underlying,
+                                      expiry: pos.expiry,
+                                      side: "buy",
+                                      type: pos.name.split(" ")[2],
+                                      strike: parseFloat(pos.name.split(" ")[1]),
+                                      ltp: pos.current_price
+                                    });
+                                    setActivePage("options");
+                                  } else {
+                                    setSelected(pos.isin);
+                                    setActivePage("stock");
+                                  }
+                                }}
+                                disabled={paperBusy}
+                                style={{
+                                  background: "#0f2a24",
+                                  color: "#4ade80",
+                                  border: "1px solid #4ade8055",
+                                  borderRadius: 6,
+                                  padding: "6px 8px",
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  cursor: paperBusy ? "not-allowed" : "pointer",
+                                  opacity: paperBusy ? 0.5 : 1,
+                                  transition: "all 0.2s ease"
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (!paperBusy) {
+                                    e.currentTarget.style.background = "#10b981";
+                                    e.currentTarget.style.color = "#fff";
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (!paperBusy) {
+                                    e.currentTarget.style.background = "#0f2a24";
+                                    e.currentTarget.style.color = "#4ade80";
+                                  }
+                                }}
+                              >
+                                BUY
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const executionPrice = pos.current_price;
+                                  const amount = pos.quantity * executionPrice;
+                                  placePaperOrder(
+                                    "sell",
+                                    pos.isin,
+                                    amount,
+                                    executionPrice,
+                                    pos.is_option ? pos.name : null,
+                                    pos.is_option ? pos.expiry : null
+                                  );
+                                }}
+                                disabled={paperBusy}
+                                style={{
+                                  background: "#2a1218",
+                                  color: "#f87171",
+                                  border: "1px solid #f8717155",
+                                  borderRadius: 6,
+                                  padding: "6px 8px",
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  cursor: paperBusy ? "not-allowed" : "pointer",
+                                  opacity: paperBusy ? 0.5 : 1,
+                                  transition: "all 0.2s ease"
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (!paperBusy) {
+                                    e.currentTarget.style.background = "#ef4444";
+                                    e.currentTarget.style.color = "#fff";
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (!paperBusy) {
+                                    e.currentTarget.style.background = "#2a1218";
+                                    e.currentTarget.style.color = "#f87171";
+                                  }
+                                }}
+                              >
+                                SELL
+                              </button>
                             </div>
                           </div>
                         ))}
