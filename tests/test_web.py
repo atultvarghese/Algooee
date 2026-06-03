@@ -1,11 +1,13 @@
 from unittest.mock import patch
-
 from fastapi.testclient import TestClient
-
 # pyrefly: ignore [missing-import]
-from app.web import app
+from app.web import app, get_current_user, get_current_admin, PAPER_STORE
 
 client = TestClient(app)
+
+# Override dependencies for existing endpoints to allow them to pass without authorization headers
+app.dependency_overrides[get_current_user] = lambda: {"id": 1, "email": "admin@algooee.local", "role": "admin"}
+app.dependency_overrides[get_current_admin] = lambda: {"id": 1, "email": "admin@algooee.local", "role": "admin"}
 
 
 def test_root_endpoint():
@@ -16,7 +18,6 @@ def test_root_endpoint():
 
 
 def test_prediction_endpoint_requires_token():
-    # Prepare a sample request payload
     payload = {
         "isin": "INE123A01011",
         "start_date": "2025-08-05",
@@ -24,11 +25,8 @@ def test_prediction_endpoint_requires_token():
         "interval": "day",
         "count": 1,
     }
-
-    # Call the POST endpoint
     response = client.post("/api/predict", json=payload)
-
-    # Since we don't have an Upstox token, we expect a 503
+    # Since Upstox token is not set, returns 503
     assert response.status_code == 503 or response.status_code == 400
 
 
@@ -88,3 +86,135 @@ def test_live_instrument_search_endpoint():
         assert len(json_data["results"]) == 1
         assert json_data["results"][0]["isin"] == "INE002A01018"
         assert json_data["results"][0]["name"] == "RELIANCE INDUSTRIES LTD"
+
+
+# Authentication and User Management Endpoint Tests
+# Clear overrides to test actual route behaviors
+def test_auth_flow():
+    # Clean up existing test user if any from previous runs
+    existing = PAPER_STORE.get_user_by_email("test_user_flow@algooee.local")
+    if existing:
+        PAPER_STORE.delete_user(existing["id"])
+
+    original_user_dep = app.dependency_overrides.get(get_current_user)
+    original_admin_dep = app.dependency_overrides.get(get_current_admin)
+    if get_current_user in app.dependency_overrides:
+        del app.dependency_overrides[get_current_user]
+    if get_current_admin in app.dependency_overrides:
+        del app.dependency_overrides[get_current_admin]
+
+    try:
+        email = "test_user_flow@algooee.local"
+        password = "testpassword123"
+
+        # 1. Register User
+        reg_res = client.post("/api/auth/register", json={"email": email, "password": password})
+        assert reg_res.status_code == 200
+        reg_data = reg_res.json()
+        assert "token" in reg_data
+        assert reg_data["user"]["email"] == email
+
+        # 2. Login User
+        login_res = client.post("/api/auth/login", json={"email": email, "password": password})
+        assert login_res.status_code == 200
+        login_data = login_res.json()
+        token = login_data["token"]
+        assert token
+
+        # 3. Get profile (/api/auth/me)
+        me_res = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        assert me_res.status_code == 200
+        assert me_res.json()["email"] == email
+
+        # 4. Access without auth
+        bad_me = client.get("/api/auth/me")
+        assert bad_me.status_code == 401
+
+        # 5. Logout
+        logout_res = client.post("/api/auth/logout", headers={"Authorization": f"Bearer {token}"})
+        assert logout_res.status_code == 200
+
+        # 6. Get profile after logout (unauthorized)
+        me_after = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        assert me_after.status_code == 401
+
+    finally:
+        # Restore overrides
+        if original_user_dep:
+            app.dependency_overrides[get_current_user] = original_user_dep
+        if original_admin_dep:
+            app.dependency_overrides[get_current_admin] = original_admin_dep
+
+
+def test_user_management_access_controls():
+    # Clean up existing test users if any from previous runs
+    for email in ["std@algooee.local", "created@algooee.local", "updated@algooee.local"]:
+        existing = PAPER_STORE.get_user_by_email(email)
+        if existing:
+            PAPER_STORE.delete_user(existing["id"])
+
+    original_user_dep = app.dependency_overrides.get(get_current_user)
+    original_admin_dep = app.dependency_overrides.get(get_current_admin)
+    if get_current_user in app.dependency_overrides:
+        del app.dependency_overrides[get_current_user]
+    if get_current_admin in app.dependency_overrides:
+        del app.dependency_overrides[get_current_admin]
+
+    try:
+        # Create non-admin and admin users
+        client.post("/api/auth/register", json={"email": "std@algooee.local", "password": "pass"})
+        # The first user is admin (admin@algooee.local) which was seeded in DB migration
+        admin_login = client.post("/api/auth/login", json={"email": "admin@algooee.local", "password": "admin123"})
+        admin_token = admin_login.json()["token"]
+
+        user_login = client.post("/api/auth/login", json={"email": "std@algooee.local", "password": "pass"})
+        user_token = user_login.json()["token"]
+
+        # Non-admin tries to list users
+        list_non_admin = client.get("/api/admin/users", headers={"Authorization": f"Bearer {user_token}"})
+        assert list_non_admin.status_code == 403
+
+        # Admin lists users
+        list_admin = client.get("/api/admin/users", headers={"Authorization": f"Bearer {admin_token}"})
+        assert list_admin.status_code == 200
+        users_list = list_admin.json()["users"]
+        assert len(users_list) >= 2
+
+        # Admin creates new user
+        new_user = client.post(
+            "/api/admin/users",
+            json={"email": "created@algooee.local", "password": "newpassword", "role": "user"},
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
+        assert new_user.status_code == 200
+        new_user_id = new_user.json()["user"]["id"]
+
+        # Admin updates new user
+        update_res = client.put(
+            f"/api/admin/users/{new_user_id}",
+            json={"email": "updated@algooee.local", "role": "admin"},
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
+        assert update_res.status_code == 200
+        assert update_res.json()["user"]["role"] == "admin"
+
+        # Admin deletes user
+        del_res = client.delete(
+            f"/api/admin/users/{new_user_id}",
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
+        assert del_res.status_code == 200
+
+        # Try to delete oneself
+        my_id = admin_login.json()["user"]["id"]
+        del_self = client.delete(
+            f"/api/admin/users/{my_id}",
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
+        assert del_self.status_code == 400
+
+    finally:
+        if original_user_dep:
+            app.dependency_overrides[get_current_user] = original_user_dep
+        if original_admin_dep:
+            app.dependency_overrides[get_current_admin] = original_admin_dep

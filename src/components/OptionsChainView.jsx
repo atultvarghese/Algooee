@@ -1,6 +1,21 @@
 import React, { useState, useEffect } from "react";
 import { API_BASE } from "../utils/constants";
 
+async function authFetch(url, options = {}) {
+  const token = localStorage.getItem("token");
+  const headers = {
+    ...options.headers,
+    ...(token ? { "Authorization": `Bearer ${token}` } : {})
+  };
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 401) {
+    localStorage.removeItem("token");
+    window.location.reload();
+    throw new Error("Unauthorized");
+  }
+  return res;
+}
+
 export default function OptionsChainView({
   stocks,
   selectedUnderlying,
@@ -48,7 +63,7 @@ export default function OptionsChainView({
       setError("");
       setChain([]);
       try {
-        const resp = await fetch(`${API_BASE}/api/options/expiries/${encodeURIComponent(underlying)}`);
+        const resp = await authFetch(`${API_BASE}/api/options/expiries/${encodeURIComponent(underlying)}`);
         if (!resp.ok) {
           const errJson = await resp.json();
           throw new Error(errJson.detail || "Failed to load option expiries.");
@@ -81,7 +96,7 @@ export default function OptionsChainView({
       setLoading(true);
       setError("");
       try {
-        const resp = await fetch(`${API_BASE}/api/options/chain?underlying_key=${encodeURIComponent(underlying)}&expiry_date=${selectedExpiry}`);
+        const resp = await authFetch(`${API_BASE}/api/options/chain?underlying_key=${encodeURIComponent(underlying)}&expiry_date=${selectedExpiry}`);
         if (!resp.ok) {
           const errJson = await resp.json();
           throw new Error(errJson.detail || "Failed to load option chain.");

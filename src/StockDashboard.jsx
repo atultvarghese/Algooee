@@ -28,13 +28,14 @@ const getDaysRemaining = (expiryDateStr) => {
   if (diffDays === 1) return "1 day remaining";
   return `${diffDays} days remaining`;
 };
-
-// Components (UPDATED IMPORTS)
+// Components
 import { RiskMeter, ConfidenceRing, CustomTooltip } from "./components/CommonWidgets";
 import StockCard from "./components/StockCard";
 import OptionsChainView from "./components/OptionsChainView";
+import LoginView from "./components/LoginView";
+import UserManagementView from "./components/UserManagementView";
 
-export default function StockDashboard() {
+function DashboardContent({ currentUser, onLogout }) {
   const [activePage, setActivePage] = useState("stock");
   const [optionUnderlying, setOptionUnderlying] = useState("NIFTY");
   const [selectedOptionContract, setSelectedOptionContract] = useState(null);
@@ -112,8 +113,18 @@ export default function StockDashboard() {
 
     const timer = setTimeout(() => {
       setSearchLoading(true);
-      fetch(`${API_BASE}/api/instruments/search?q=${encodeURIComponent(liveQuery)}`)
+      const token = localStorage.getItem("token");
+      fetch(`${API_BASE}/api/instruments/search?q=${encodeURIComponent(liveQuery)}`, {
+        headers: {
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        }
+      })
         .then((res) => {
+          if (res.status === 401) {
+            localStorage.removeItem("token");
+            window.location.reload();
+            throw new Error("Unauthorized");
+          }
           if (!res.ok) throw new Error("Failed to search instruments");
           return res.json();
         })
@@ -196,7 +207,7 @@ export default function StockDashboard() {
   return (
     <div style={{
       minHeight: "100vh", background: "#060e17", color: "#cde", fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
-      display: "grid", gridTemplateColumns: isMobile ? "1fr" : "280px 1fr", gridTemplateRows: isMobile ? "auto auto 1fr" : "60px 1fr"
+      display: "grid", gridTemplateColumns: (isMobile || activePage === "users") ? "1fr" : "280px 1fr", gridTemplateRows: isMobile ? "auto auto 1fr" : "60px 1fr"
     }}>
       {/* Header */}
       <div style={{
@@ -272,8 +283,24 @@ export default function StockDashboard() {
             >
               ADMIN PAGE
             </button>
+            {currentUser?.role === "admin" && (
+              <button
+                onClick={() => setActivePage("users")}
+                style={{
+                  background: activePage === "users" ? "#00e5a022" : "#0a1520",
+                  color: activePage === "users" ? "#00e5a0" : "#778899",
+                  border: `1px solid ${activePage === "users" ? "#00e5a055" : "#1a2a3a"}`,
+                  borderRadius: 8, padding: "6px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer",
+                }}
+              >
+                USER MANAGEMENT
+              </button>
+            )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, color: "#8899aa" }}>
+              User: <span style={{ color: "#fff", fontWeight: 600 }}>{currentUser?.email}</span>
+            </span>
             <div style={{ fontSize: 11, color: "#8899aa" }}>Wallet: <span style={{ color: "#00e5a0", fontWeight: 700 }}>{formatINR(paper.cash_balance)}</span></div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ background: "#1a2a3a", border: "1px solid #2a3a4a", color: "#778899", borderRadius: 20, padding: "4px 14px", fontSize: 10, fontWeight: 600, letterSpacing: 1 }}>
@@ -281,12 +308,24 @@ export default function StockDashboard() {
               </div>
               <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#00e5a0", boxShadow: "0 0 8px #00e5a0", animation: "pulse 2s infinite" }} />
             </div>
+            <button
+              onClick={onLogout}
+              style={{
+                background: "#2a1218", color: "#f87171", border: "1px solid #f8717155",
+                borderRadius: 8, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer",
+                transition: "all 0.2s ease"
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "#ef4444"; e.currentTarget.style.color = "#fff"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "#2a1218"; e.currentTarget.style.color = "#f87171"; }}
+            >
+              LOGOUT
+            </button>
           </div>
         </div>
       </div>
 
       {/* Sidebar */}
-      {(!isMobile || showWatchlist) && (
+      {(!isMobile || showWatchlist) && activePage !== "users" && (
         <div style={{
           borderRight: isMobile ? "none" : "1px solid #1a2a3a",
           borderBottom: isMobile ? "1px solid #1a2a3a" : "none",
@@ -383,7 +422,9 @@ export default function StockDashboard() {
 
       {/* Main content */}
       <div style={{ overflowY: "auto", padding: isMobile ? "16px 12px" : "24px 28px" }}>
-        {activePage === "options" ? (
+        {activePage === "users" ? (
+          <UserManagementView API_BASE={API_BASE} currentUser={currentUser} />
+        ) : activePage === "options" ? (
           <OptionsChainView
             stocks={stocks}
             selectedUnderlying={optionUnderlying}
@@ -432,7 +473,7 @@ export default function StockDashboard() {
                       { label: "Total Profit / Loss", value: formatINR(paper.total_pnl), color: (paper.total_pnl ?? 0) >= 0 ? "#00e5a0" : "#ef4444", desc: "Unrealized P/L of open positions" },
                     ].map((item) => (
                       <div key={item.label} style={{
-                        background: "#08101a", border: "1px solid #142234",
+                        background: "#08101a",
                         borderRadius: 12, padding: "16px",
                         boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
                       }}>
@@ -445,7 +486,7 @@ export default function StockDashboard() {
 
                   {/* Open Positions Card */}
                   <div style={{
-                    background: "#08101a", border: "1px solid #142234",
+                    background: "#08101a",
                     borderRadius: 12, padding: "20px",
                     boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
                   }}>
@@ -456,19 +497,19 @@ export default function StockDashboard() {
 
                     {(paper.positions || []).length ? (
                       <div style={{ overflowX: "auto" }}>
-                        <div style={{ border: "1px solid #142234", borderRadius: 8, overflow: "hidden", minWidth: isMobile ? "750px" : "auto" }}>
+                        <div style={{ overflow: "hidden", minWidth: isMobile ? "750px" : "auto" }}>
                         <div style={{
                           display: "grid",
                           gridTemplateColumns: "1.3fr 1.1fr 1.0fr 0.9fr 1.0fr 1.2fr 0.9fr",
                           background: "#0c1827", color: "#556a84",
                           fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase"
                         }}>
-                          <div style={{ padding: "12px 14px", borderRight: "1px solid #142234" }}>Asset</div>
-                          <div style={{ padding: "12px 14px", borderRight: "1px solid #142234" }}>Amt Purchased</div>
-                          <div style={{ padding: "12px 14px", borderRight: "1px solid #142234" }}>Avg Cost</div>
-                          <div style={{ padding: "12px 14px", borderRight: "1px solid #142234" }}>Current</div>
-                          <div style={{ padding: "12px 14px", borderRight: "1px solid #142234" }}>Unrealized P/L</div>
-                          <div style={{ padding: "12px 14px", borderRight: "1px solid #142234" }}>Purchase Date & Recency</div>
+                          <div style={{ padding: "12px 14px" }}>Asset</div>
+                          <div style={{ padding: "12px 14px" }}>Amt Purchased</div>
+                          <div style={{ padding: "12px 14px" }}>Avg Cost</div>
+                          <div style={{ padding: "12px 14px" }}>Current</div>
+                          <div style={{ padding: "12px 14px" }}>Unrealized P/L</div>
+                          <div style={{ padding: "12px 14px" }}>Purchase Date & Recency</div>
                           <div style={{ padding: "12px 14px", textAlign: "center" }}>Action</div>
                         </div>
                         {(paper.positions || []).map((pos) => (
@@ -479,7 +520,7 @@ export default function StockDashboard() {
                             background: "#08101a", color: "#cde",
                             alignItems: "center"
                           }}>
-                            <div style={{ padding: "12px 14px", borderRight: "1px solid #142234" }}>
+                            <div style={{ padding: "12px 14px" }}>
                               <div style={{ fontWeight: 600, color: "#fff" }}>{pos.name}</div>
                               <div style={{ fontSize: 9, color: "#556a84", marginTop: 2, display: "flex", flexDirection: "column", gap: 2 }}>
                                 {pos.is_option && pos.expiry ? (
@@ -492,24 +533,24 @@ export default function StockDashboard() {
                                 )}
                               </div>
                             </div>
-                            <div style={{ padding: "12px 14px", borderRight: "1px solid #142234", fontFamily: "'Space Mono', monospace", color: "#9bb0c4" }}>
+                            <div style={{ padding: "12px 14px", fontFamily: "'Space Mono', monospace", color: "#9bb0c4" }}>
                               {formatINR(pos.cost_value)}
                             </div>
-                            <div style={{ padding: "12px 14px", borderRight: "1px solid #142234", fontFamily: "'Space Mono', monospace", color: "#9bb0c4" }}>
+                            <div style={{ padding: "12px 14px", fontFamily: "'Space Mono', monospace", color: "#9bb0c4" }}>
                               {formatINR(pos.avg_price)}
                             </div>
-                            <div style={{ padding: "12px 14px", borderRight: "1px solid #142234", fontFamily: "'Space Mono', monospace", color: "#e8f4ff" }}>
+                            <div style={{ padding: "12px 14px", fontFamily: "'Space Mono', monospace", color: "#e8f4ff" }}>
                               {formatINR(pos.current_price)}
                             </div>
                             <div style={{
-                              padding: "12px 14px", borderRight: "1px solid #142234",
+                              padding: "12px 14px",
                               fontFamily: "'Space Mono', monospace",
                               color: (pos.unrealized_pnl ?? 0) >= 0 ? "#00e5a0" : "#ef4444",
                               fontWeight: 600
                             }}>
                               {formatINR(pos.unrealized_pnl)}
                             </div>
-                            <div style={{ padding: "12px 14px", borderRight: "1px solid #142234", color: "#9bb0c4" }}>
+                            <div style={{ padding: "12px 14px", color: "#9bb0c4" }}>
                               <div style={{ color: "#fff", fontFamily: "'Space Mono', monospace" }}>{formatExactDateTime(pos.updated_at)}</div>
                               <div style={{ fontSize: 10, color: "#00e5a0", marginTop: 2 }}>{formatPreciseRelativeTime(pos.updated_at)}</div>
                             </div>
@@ -626,7 +667,7 @@ export default function StockDashboard() {
 
                   {/* Admin Funding / Reset Control */}
                   <div style={{
-                    background: "#08101a", border: "1px solid #142234",
+                    background: "#08101a",
                     borderRadius: 12, padding: "20px",
                     boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
                   }}>
@@ -681,7 +722,7 @@ export default function StockDashboard() {
 
                   {/* Unified Activity Log (Cleaned up trades / ledger) */}
                   <div style={{
-                    background: "#08101a", border: "1px solid #142234",
+                    background: "#08101a",
                     borderRadius: 12, padding: "20px",
                     boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
                   }}>
@@ -1000,7 +1041,49 @@ export default function StockDashboard() {
           </>
         ) : null}
       </div>
+    </div>
+  );
+}
 
+export default function StockDashboard() {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    setCurrentUser(null);
+  };
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setAuthLoading(false);
+      return;
+    }
+
+    fetch(`${API_BASE}/api/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Auth check failed");
+        return res.json();
+      })
+      .then((user) => {
+        setCurrentUser(user);
+      })
+      .catch((err) => {
+        console.error(err);
+        localStorage.removeItem("token");
+      })
+      .finally(() => {
+        setAuthLoading(false);
+      });
+  }, []);
+
+  return (
+    <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600&display=swap');
         * { box-sizing: border-box; }
@@ -1014,6 +1097,22 @@ export default function StockDashboard() {
         ::-webkit-scrollbar-thumb { background: #1a2a3a; border-radius: 2px; }
         @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
       `}</style>
-    </div>
+      {authLoading ? (
+        <div style={{
+          minHeight: "100vh", background: "#060e17", color: "#cde",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: "'DM Sans', sans-serif"
+        }}>
+          Loading Algooee...
+        </div>
+      ) : !currentUser ? (
+        <LoginView API_BASE={API_BASE} onLoginSuccess={(token, user) => {
+          localStorage.setItem("token", token);
+          setCurrentUser(user);
+        }} />
+      ) : (
+        <DashboardContent currentUser={currentUser} onLogout={handleLogout} />
+      )}
+    </>
   );
 }

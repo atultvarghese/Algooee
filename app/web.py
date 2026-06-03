@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -23,11 +23,11 @@ from core.prediction import Prediction
 
 app = FastAPI(
     title="Algooee API",
-    description="Stock prediction and analysis API",
-    version="1.0.0",
+    description="Stock prediction and analysis API with User Management",
+    version="1.1.0",
 )
 
-# Allow the frontend dev servers to access this API (Vite default ports and local network IPs)
+# Allow the frontend dev servers to access this API
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?",
@@ -77,6 +77,23 @@ class StockAddRequest(BaseModel):
     name: str
 
 
+class UserLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class UserCreateRequest(BaseModel):
+    email: str
+    password: str
+    role: str = "user"
+
+
+class UserUpdateRequest(BaseModel):
+    email: Optional[str] = None
+    password: Optional[str] = None
+    role: Optional[str] = None
+
+
 # Initialize client
 try:
     client = UpstoxClient()
@@ -87,7 +104,6 @@ except ValueError:
 def _get_db_path():
     frozen = getattr(sys, "frozen", False)
     if frozen:
-        # Save db next to executable in compiled binary to ensure trading data is preserved
         exe_dir = Path(sys.executable).parent
         return str(exe_dir / "paper_trade.db")
     else:
@@ -104,6 +120,32 @@ MARKET_TZ = timezone(timedelta(hours=5, minutes=30))
 
 def _market_now():
     return datetime.now(MARKET_TZ)
+
+
+# Authentication Dependencies
+async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid authentication token"
+        )
+    token = authorization.split(" ")[1]
+    user = PAPER_STORE.get_user_by_token(token)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session expired or invalid token"
+        )
+    return user
+
+
+async def get_current_admin(current_user: dict = Depends(get_current_user)) -> dict:
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Requires administrative privileges"
+        )
+    return current_user
 
 
 def _fetch_close_snapshot(isin: str, start_date, end_date, interval: str):
@@ -153,7 +195,6 @@ def _to_float_or_none(value):
 
 def _fetch_ltp_snapshot(isin: str):
     """Fetch current last traded price and previous close from market quote."""
-
     if not client:
         return None, None, None
 
@@ -258,13 +299,13 @@ def _fetch_latest_and_prev_close(isin: str):
     return minute_close, prev_close, minute_as_of
 
 
-def _build_paper_portfolio_snapshot():
-    cash_balance = PAPER_STORE.get_cash_balance()
-    total_funded = PAPER_STORE.get_total_funded()
-    holdings = PAPER_STORE.list_holdings()
-    realized_pnl = PAPER_STORE.get_realized_pnl()
+def _build_paper_portfolio_snapshot(user_id: int):
+    cash_balance = PAPER_STORE.get_cash_balance(user_id)
+    total_funded = PAPER_STORE.get_total_funded(user_id)
+    holdings = PAPER_STORE.list_holdings(user_id)
+    realized_pnl = PAPER_STORE.get_realized_pnl(user_id)
     stock_name_by_isin = {
-        row["isin"]: row["name"] for row in PAPER_STORE.list_stocks(limit=2000)
+        row["isin"]: row["name"] for row in PAPER_STORE.list_stocks(user_id, limit=2000)
     }
     instrument_meta = PAPER_STORE.get_instrument_metadata()
 
@@ -326,7 +367,7 @@ def _build_paper_portfolio_snapshot():
     pnl_vs_funded = equity - total_funded
 
     enriched_trades = []
-    for trade in PAPER_STORE.list_trades(limit=100):
+    for trade in PAPER_STORE.list_trades(user_id, limit=100):
         isin = trade["isin"]
         meta = instrument_meta.get(isin, {})
         name = meta.get("name") or stock_name_by_isin.get(isin, isin)
@@ -355,14 +396,119 @@ def _build_paper_portfolio_snapshot():
         "price_as_of": price_as_of,
         "positions": positions,
         "trades": enriched_trades,
-        "cash_flows": PAPER_STORE.list_ledger(limit=100),
+        "cash_flows": PAPER_STORE.list_ledger(user_id, limit=100),
     }
 
 
 # API Routes
+
+# Authentication Endpoints
+@app.post("/api/auth/register", tags=["Authentication"])
+async def register_user(request: UserCreateRequest):
+    try:
+        user_id = PAPER_STORE.create_user(request.email, request.password, role="user")
+        user = PAPER_STORE.get_user_by_id(user_id)
+        token = PAPER_STORE.create_session(user_id)
+        return {"token": token, "user": user}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
+
+
+@app.post("/api/auth/login", tags=["Authentication"])
+async def login_user(request: UserLoginRequest):
+    user = PAPER_STORE.get_user_by_email(request.email)
+    if not user or not from_paper_trade_verify(request.password, user["password_hash"]):
+        raise HTTPException(status_code=400, detail="Invalid email or password")
+    
+    token = PAPER_STORE.create_session(user["id"])
+    return {
+        "token": token,
+        "user": {
+            "id": user["id"],
+            "email": user["email"],
+            "role": user["role"],
+            "created_at": user["created_at"]
+        }
+    }
+
+
+def from_paper_trade_verify(password, stored_hash):
+    # helper wrapper to avoid circular or dynamic loading issues
+    from app.paper_trade import verify_password
+    return verify_password(password, stored_hash)
+
+
+@app.post("/api/auth/logout", tags=["Authentication"])
+async def logout_user(authorization: Optional[str] = Header(None)):
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        PAPER_STORE.delete_session(token)
+    return {"message": "Logged out successfully"}
+
+
+@app.get("/api/auth/me", tags=["Authentication"])
+async def get_my_profile(current_user: dict = Depends(get_current_user)):
+    return current_user
+
+
+# Admin User Management Endpoints
+@app.get("/api/admin/users", tags=["Admin User Management"])
+async def get_all_users(current_admin: dict = Depends(get_current_admin)):
+    try:
+        return {"users": PAPER_STORE.list_users()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch users: {str(e)}")
+
+
+@app.post("/api/admin/users", tags=["Admin User Management"])
+async def admin_create_user(request: UserCreateRequest, current_admin: dict = Depends(get_current_admin)):
+    try:
+        user_id = PAPER_STORE.create_user(request.email, request.password, role=request.role)
+        return {"user": PAPER_STORE.get_user_by_id(user_id)}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create user: {str(e)}")
+
+
+@app.put("/api/admin/users/{user_id}", tags=["Admin User Management"])
+async def admin_update_user(user_id: int, request: UserUpdateRequest, current_admin: dict = Depends(get_current_admin)):
+    try:
+        # Prevent admin from changing their own role to non-admin
+        if user_id == current_admin["id"] and request.role and request.role != "admin":
+            raise HTTPException(status_code=400, detail="Cannot downgrade your own administrative privileges.")
+            
+        PAPER_STORE.update_user(
+            user_id=user_id,
+            email=request.email,
+            password_raw=request.password,
+            role=request.role
+        )
+        return {"user": PAPER_STORE.get_user_by_id(user_id)}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update user: {str(e)}")
+
+
+@app.delete("/api/admin/users/{user_id}", tags=["Admin User Management"])
+async def admin_delete_user(user_id: int, current_admin: dict = Depends(get_current_admin)):
+    if user_id == current_admin["id"]:
+        raise HTTPException(status_code=400, detail="Cannot delete your own administrative user.")
+    try:
+        PAPER_STORE.delete_user(user_id)
+        return {"message": f"User {user_id} deleted successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete user: {str(e)}")
+
+
+# General Stock and Paper Trading Endpoints (Authenticated)
+
 @app.get("/", tags=["UI"])
 async def root():
-    """Root endpoint – UI removed, API only."""
+    """Root endpoint – serves React static files or API status description."""
     dist_path = Path(__file__).resolve().parents[1] / "dist"
     index_file = dist_path / "index.html"
     if index_file.exists():
@@ -384,20 +530,8 @@ async def health():
     tags=["Stock Data"],
     response_model=HistoricalCandleResponse,
 )
-async def get_historical_candles(request: StockPredictionRequest):
-    """
-    Fetch historical candle data for a stock.
-
-    Args:
-        isin: Instrument ISIN code (e.g., INE002A01018 for Reliance)
-        start_date: Start date (YYYY-MM-DD)
-        end_date: End date (YYYY-MM-DD)
-        interval: Candle interval (day, month, etc.)
-        count: Number of intervals per candle
-
-    Returns:
-        Historical candle data with timestamp, open, high, low, close, volume, open interest
-    """
+async def get_historical_candles(request: StockPredictionRequest, current_user: dict = Depends(get_current_user)):
+    """Fetch historical candle data for a stock."""
     if not client:
         raise HTTPException(
             status_code=503,
@@ -420,7 +554,7 @@ async def get_historical_candles(request: StockPredictionRequest):
 
 
 @app.get("/api/market-quote/ltp/{isin}", tags=["Stock Data"])
-async def get_ltp_quote(isin: str):
+async def get_ltp_quote(isin: str, current_user: dict = Depends(get_current_user)):
     """Fetch current last traded price for a stock."""
     if not client:
         raise HTTPException(status_code=503, detail="Upstox API client not configured")
@@ -455,20 +589,8 @@ async def get_ltp_quote(isin: str):
 
 
 @app.post("/api/predict", tags=["Predictions"])
-async def predict_stock(request: StockPredictionRequest):
-    """
-    Predict the next day's high price for a stock.
-
-    Args:
-        isin: Instrument ISIN code
-        start_date: Start date for historical data
-        end_date: End date for historical data
-        interval: Data interval (default: day)
-        count: Number of intervals (default: 1)
-
-    Returns:
-        Predicted high price and confidence level
-    """
+async def predict_stock(request: StockPredictionRequest, current_user: dict = Depends(get_current_user)):
+    """Predict the next day's high price for a stock."""
     if not client:
         raise HTTPException(status_code=503, detail="Upstox API client not configured")
     cache_key = (
@@ -481,7 +603,6 @@ async def predict_stock(request: StockPredictionRequest):
         return cached["value"]
 
     try:
-        # Fetch historical data
         candles = client.get_historical_candles(
             isin=request.isin,
             start_date=request.start_date,
@@ -496,7 +617,6 @@ async def predict_stock(request: StockPredictionRequest):
                 detail="No data found for the given ISIN and date range",
             )
 
-        # Prepare data
         headers = [
             "Timestamp",
             "Open",
@@ -508,7 +628,6 @@ async def predict_stock(request: StockPredictionRequest):
         ]
         df = pd.DataFrame(candles, columns=headers)
 
-        # Train model and predict
         future_days = max(1, min(int(request.forecast_days or 1), 15))
         backtest_days = max(8, min(int(request.backtest_days or 30), 60))
         predictor = Prediction(df)
@@ -521,7 +640,6 @@ async def predict_stock(request: StockPredictionRequest):
         diagnostics = predictor.get_diagnostics()
         signal = predictor.get_signal_snapshot(forecast)
 
-        # Compatibility fields + richer payload
         predicted_high = float(forecast.get("predicted_high", 0.0))
         mae = float(forecast.get("mae", 0.0))
         mape = float(forecast.get("mape", 0.0))
@@ -556,29 +674,29 @@ async def predict_stock(request: StockPredictionRequest):
 
 
 @app.get("/api/stocks", tags=["Reference"])
-async def get_stock_list(q: Optional[str] = None):
+async def get_stock_list(q: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     """Get dynamic watchlist stocks with optional search query."""
     try:
-        return {"stocks": PAPER_STORE.list_stocks(query=q, limit=500)}
+        return {"stocks": PAPER_STORE.list_stocks(user_id=current_user["id"], query=q, limit=500)}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Stock list error: {str(e)}")
 
 
 @app.get("/api/stocks/search", tags=["Reference"])
-async def search_stock_list(q: str):
+async def search_stock_list(q: str, current_user: dict = Depends(get_current_user)):
     """Search stocks in watchlist by name or ISIN."""
     try:
-        return {"stocks": PAPER_STORE.list_stocks(query=q, limit=200)}
+        return {"stocks": PAPER_STORE.list_stocks(user_id=current_user["id"], query=q, limit=200)}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Stock search error: {str(e)}")
 
 
 @app.post("/api/stocks/add", tags=["Reference"])
-async def add_stock_to_watchlist(request: StockAddRequest):
+async def add_stock_to_watchlist(request: StockAddRequest, current_user: dict = Depends(get_current_user)):
     """Add or update a stock in watchlist."""
     try:
-        added = PAPER_STORE.add_stock(isin=request.isin, name=request.name)
-        return {"added": added, "stocks": PAPER_STORE.list_stocks(limit=500)}
+        added = PAPER_STORE.add_stock(user_id=current_user["id"], isin=request.isin, name=request.name)
+        return {"added": added, "stocks": PAPER_STORE.list_stocks(user_id=current_user["id"], limit=500)}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -586,11 +704,11 @@ async def add_stock_to_watchlist(request: StockAddRequest):
 
 
 @app.delete("/api/stocks/{isin}", tags=["Reference"])
-async def remove_stock_from_watchlist(isin: str):
+async def remove_stock_from_watchlist(isin: str, current_user: dict = Depends(get_current_user)):
     """Remove stock from watchlist."""
     try:
-        PAPER_STORE.remove_stock(isin=isin)
-        return {"stocks": PAPER_STORE.list_stocks(limit=500)}
+        PAPER_STORE.remove_stock(user_id=current_user["id"], isin=isin)
+        return {"stocks": PAPER_STORE.list_stocks(user_id=current_user["id"], limit=500)}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -598,29 +716,29 @@ async def remove_stock_from_watchlist(isin: str):
 
 
 @app.get("/api/paper/portfolio", tags=["Paper Trading"])
-async def get_paper_portfolio():
+async def get_paper_portfolio(current_user: dict = Depends(get_current_user)):
     """Get current paper trading wallet, holdings, trades and P/L."""
     try:
-        return _build_paper_portfolio_snapshot()
+        return _build_paper_portfolio_snapshot(current_user["id"])
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Paper portfolio error: {str(e)}")
 
 
 @app.get("/api/paper/admin", tags=["Paper Trading"])
-async def get_paper_admin():
+async def get_paper_admin(current_user: dict = Depends(get_current_user)):
     """Admin summary for paper trading."""
     try:
-        return _build_paper_portfolio_snapshot()
+        return _build_paper_portfolio_snapshot(current_user["id"])
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Paper admin error: {str(e)}")
 
 
 @app.post("/api/paper/admin/fund", tags=["Paper Trading"])
-async def paper_fund_wallet(request: PaperFundRequest):
+async def paper_fund_wallet(request: PaperFundRequest, current_user: dict = Depends(get_current_user)):
     """Add paper money to wallet."""
     try:
-        PAPER_STORE.add_funds(amount=float(request.amount), note=request.note)
-        return _build_paper_portfolio_snapshot()
+        PAPER_STORE.add_funds(user_id=current_user["id"], amount=float(request.amount), note=request.note)
+        return _build_paper_portfolio_snapshot(current_user["id"])
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -628,7 +746,7 @@ async def paper_fund_wallet(request: PaperFundRequest):
 
 
 @app.post("/api/paper/trade", tags=["Paper Trading"])
-async def paper_place_trade(request: PaperOrderRequest):
+async def paper_place_trade(request: PaperOrderRequest, current_user: dict = Depends(get_current_user)):
     """Execute a paper BUY/SELL order using amount-based input."""
     try:
         execution_price = None
@@ -653,6 +771,7 @@ async def paper_place_trade(request: PaperOrderRequest):
             )
 
         order = PAPER_STORE.place_order(
+            user_id=current_user["id"],
             isin=request.isin,
             side=request.side,
             amount=float(request.amount),
@@ -669,7 +788,7 @@ async def paper_place_trade(request: PaperOrderRequest):
                 "realized_pnl": round(order.realized_pnl, 2),
                 "cash_balance": round(order.cash_balance, 2),
             },
-            "portfolio": _build_paper_portfolio_snapshot(),
+            "portfolio": _build_paper_portfolio_snapshot(current_user["id"]),
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -680,11 +799,11 @@ async def paper_place_trade(request: PaperOrderRequest):
 
 
 @app.post("/api/paper/admin/reset", tags=["Paper Trading"])
-async def paper_reset_account(request: PaperResetRequest):
+async def paper_reset_account(request: PaperResetRequest, current_user: dict = Depends(get_current_user)):
     """Reset paper account and optionally seed new cash."""
     try:
-        PAPER_STORE.reset(initial_cash=float(request.initial_cash or 0.0))
-        return _build_paper_portfolio_snapshot()
+        PAPER_STORE.reset(user_id=current_user["id"], initial_cash=float(request.initial_cash or 0.0))
+        return _build_paper_portfolio_snapshot(current_user["id"])
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Paper reset error: {str(e)}")
 
@@ -698,7 +817,6 @@ def _resolve_underlying_key(key: str) -> str:
     if key_upper in ["BANKNIFTY", "NIFTY BANK", "NIFTY_BANK"]:
         return "NSE_INDEX|Nifty Bank"
 
-    # If it is a 12-character alphanumeric ISIN, look up the active trading symbol from Upstox
     if len(key_upper) == 12 and key_upper.isalnum():
         if client:
             try:
@@ -710,12 +828,11 @@ def _resolve_underlying_key(key: str) -> str:
             except Exception as e:
                 print(f"Warning: Upstox Instrument Search failed for {key_upper}: {str(e)}")
 
-    # Otherwise assume NSE equity symbol (if it's not an ISIN but e.g. "TCS")
     return f"NSE_EQ|{key.strip()}"
 
 
 @app.get("/api/options/expiries/{underlying_key}", tags=["Options"])
-async def get_options_expiries(underlying_key: str):
+async def get_options_expiries(underlying_key: str, current_user: dict = Depends(get_current_user)):
     """Fetch all unique option expiry dates for a given underlying."""
     if not client:
         raise HTTPException(status_code=503, detail="Upstox API client not configured")
@@ -730,7 +847,7 @@ async def get_options_expiries(underlying_key: str):
 
 
 @app.get("/api/options/chain", tags=["Options"])
-async def get_options_chain(underlying_key: str, expiry_date: str):
+async def get_options_chain(underlying_key: str, expiry_date: str, current_user: dict = Depends(get_current_user)):
     """Fetch put/call option chain for a given underlying and expiry date."""
     if not client:
         raise HTTPException(status_code=503, detail="Upstox API client not configured")
@@ -766,7 +883,7 @@ async def get_options_chain(underlying_key: str, expiry_date: str):
 
 
 @app.get("/api/instruments/search", tags=["Reference"])
-async def search_upstox_instruments(q: str):
+async def search_upstox_instruments(q: str, current_user: dict = Depends(get_current_user)):
     """Search for instruments in Upstox (live search)."""
     if not client:
         raise HTTPException(status_code=503, detail="Upstox API client not configured")
@@ -792,5 +909,3 @@ async def search_upstox_instruments(q: str):
 dist_path = Path(__file__).resolve().parents[1] / "dist"
 if dist_path.exists():
     app.mount("/", StaticFiles(directory=str(dist_path)), name="static")
-
-

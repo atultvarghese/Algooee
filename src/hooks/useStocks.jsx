@@ -3,6 +3,21 @@ import { API_BASE } from "../utils/constants";
 import { buildEmptyStockData, getCandleRows, extractCandlePoint, normalizeTimestamp } from "../utils/dataHelpers";
 import { formatDateLabel } from "../utils/formatters";
 
+async function authFetch(url, options = {}) {
+  const token = localStorage.getItem("token");
+  const headers = {
+    ...options.headers,
+    ...(token ? { "Authorization": `Bearer ${token}` } : {})
+  };
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 401) {
+    localStorage.removeItem("token");
+    window.location.reload();
+    throw new Error("Unauthorized");
+  }
+  return res;
+}
+
 export default function useStocks() {
   const [stocks, setStocks] = useState([]);
   const [selected, setSelected] = useState("");
@@ -23,7 +38,7 @@ export default function useStocks() {
 
   async function fetchCurrentPrice(isin) {
     try {
-      const currentResp = await fetch(`${API_BASE}/api/market-quote/ltp/${encodeURIComponent(isin)}`, { cache: "no-store" });
+      const currentResp = await authFetch(`${API_BASE}/api/market-quote/ltp/${encodeURIComponent(isin)}`, { cache: "no-store" });
       if (currentResp.ok) {
         const currentJson = await currentResp.json();
         const currentPrice = Number(currentJson.last_price);
@@ -37,7 +52,7 @@ export default function useStocks() {
       const end = new Date();
       const currentStart = new Date();
       currentStart.setDate(end.getDate() - 5);
-      const currentResp = await fetch(`${API_BASE}/api/historical-candles`, {
+      const currentResp = await authFetch(`${API_BASE}/api/historical-candles`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isin, start_date: formatLocalDate(currentStart), end_date: formatLocalDate(end), interval: "minute", count: 1 }),
@@ -70,7 +85,7 @@ export default function useStocks() {
 
   async function fetchWatchlistStocks() {
     try {
-      const res = await fetch(`${API_BASE}/api/stocks`);
+      const res = await authFetch(`${API_BASE}/api/stocks`);
       if (!res.ok) throw new Error("Failed to fetch stocks");
       const json = await res.json();
       const list = (json.stocks || []).map((s) => ({
@@ -103,7 +118,7 @@ export default function useStocks() {
     }
     setStockBusy(true); setStockError(""); setStockNotice("");
     try {
-      const res = await fetch(`${API_BASE}/api/stocks/add`, {
+      const res = await authFetch(`${API_BASE}/api/stocks/add`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isin, name }),
@@ -137,7 +152,7 @@ export default function useStocks() {
 
     setStockBusy(true); setStockError(""); setStockNotice("");
     try {
-      const res = await fetch(`${API_BASE}/api/stocks/${encodeURIComponent(isin)}`, {
+      const res = await authFetch(`${API_BASE}/api/stocks/${encodeURIComponent(isin)}`, {
         method: "DELETE",
       });
       const json = await res.json();
@@ -175,7 +190,7 @@ export default function useStocks() {
       const start = new Date();
       start.setDate(end.getDate() - 730);
 
-      const histResp = await fetch(`${API_BASE}/api/historical-candles`, {
+      const histResp = await authFetch(`${API_BASE}/api/historical-candles`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isin, start_date: formatLocalDate(start), end_date: formatLocalDate(end), interval: 'day', count: 1 })
@@ -212,7 +227,7 @@ export default function useStocks() {
 
       let predJson = {};
       try {
-        const predResp = await fetch(`${API_BASE}/api/predict`, {
+        const predResp = await authFetch(`${API_BASE}/api/predict`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ isin, start_date: formatLocalDate(start), end_date: formatLocalDate(end), interval: "day", count: 1, forecast_days: 1, backtest_days: 30 }),

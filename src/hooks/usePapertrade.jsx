@@ -1,6 +1,21 @@
 import { useState, useEffect } from "react";
 import { API_BASE } from "../utils/constants";
 
+async function authFetch(url, options = {}) {
+  const token = localStorage.getItem("token");
+  const headers = {
+    ...options.headers,
+    ...(token ? { "Authorization": `Bearer ${token}` } : {})
+  };
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 401) {
+    localStorage.removeItem("token");
+    window.location.reload();
+    throw new Error("Unauthorized");
+  }
+  return res;
+}
+
 export default function usePaperTrade() {
   const [paperPortfolio, setPaperPortfolio] = useState(null);
   const [paperLoading, setPaperLoading] = useState(false);
@@ -11,7 +26,7 @@ export default function usePaperTrade() {
   async function refreshPaperPortfolio(showLoader = false) {
     if (showLoader) setPaperLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/paper/portfolio`);
+      const res = await authFetch(`${API_BASE}/api/paper/portfolio`);
       if (!res.ok) throw new Error(`Paper portfolio fetch failed: ${res.status}`);
       const json = await res.json();
       setPaperPortfolio(json);
@@ -40,7 +55,7 @@ export default function usePaperTrade() {
 
     setPaperBusy(true); setPaperError(""); setPaperNotice("");
     try {
-      const res = await fetch(`${API_BASE}/api/paper/trade`, {
+      const res = await authFetch(`${API_BASE}/api/paper/trade`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -74,7 +89,7 @@ export default function usePaperTrade() {
     }
     setPaperBusy(true); setPaperError(""); setPaperNotice("");
     try {
-      const res = await fetch(`${API_BASE}/api/paper/admin/fund`, {
+      const res = await authFetch(`${API_BASE}/api/paper/admin/fund`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount }),
@@ -98,7 +113,7 @@ export default function usePaperTrade() {
     if (!ok) return false;
     setPaperBusy(true); setPaperError(""); setPaperNotice("");
     try {
-      const res = await fetch(`${API_BASE}/api/paper/admin/reset`, {
+      const res = await authFetch(`${API_BASE}/api/paper/admin/reset`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ initial_cash: 0 }),
