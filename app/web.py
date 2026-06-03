@@ -487,6 +487,8 @@ async def admin_update_user(user_id: int, request: UserUpdateRequest, current_ad
             role=request.role
         )
         return {"user": PAPER_STORE.get_user_by_id(user_id)}
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -669,6 +671,8 @@ async def predict_stock(request: StockPredictionRequest, current_user: dict = De
         }
         PREDICTION_CACHE[cache_key] = {"ts": now_ts, "value": result}
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Prediction error: {str(e)}")
 
