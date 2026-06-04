@@ -1,17 +1,36 @@
 import React from "react";
 import { formatINR } from "../utils/formatters";
 
-export default function StockCard({ ticker, selected, data, onClick, onRemove, name, meta }) {
+export default function StockCard({ ticker, selected, data, onClick, onRemove, name, meta, themeMode }) {
   if (!data && !meta) return null;
   const up = (data?.changePct ?? 0) >= 0;
   const displayName = name || data?.name || ticker;
   const displayLast = data?.lastPrice ?? meta?.last_price ?? "—";
+  const isLight = themeMode === "light";
   return (
     <div onClick={onClick} style={{
-      background: selected ? "linear-gradient(135deg, #0d2236 0%, #0f2940 100%)" : "#0a1520",
-      border: `1px solid ${selected ? "#00e5a060" : "#1a2a3a"}`,
-      borderRadius: 10, padding: "14px 16px", cursor: "pointer",
-      transition: "all 0.2s", boxShadow: selected ? "0 0 20px #00e5a015" : "none"
+      background: isLight
+        ? (
+            selected
+              ? "linear-gradient(135deg,#2563eb,#3b82f6)"
+              : "linear-gradient(135deg,#1e40af,#2563eb)"
+          )
+        : (
+            selected
+              ? "linear-gradient(135deg,#0d2236 0%, #0f2940 100%)"
+              : "#0a1520"
+          ),
+
+      border: isLight
+        ? `1px solid ${selected ? "#93c5fd" : "#60a5fa"}`
+        : `1px solid ${selected ? "#00e5a060" : "#1a2a3a"}`,
+
+      borderRadius: 10,      // KEEP ORIGINAL
+      padding: "14px 16px",  // KEEP ORIGINAL
+      cursor: "pointer",
+      transition: "all 0.2s",
+
+      boxShadow: selected ? "0 0 20px #00e5a015" : "none" // KEEP ORIGINAL
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
