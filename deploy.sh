@@ -113,7 +113,37 @@ PUBLIC_IP=$(curl -s https://api.ipify.org || curl -s https://ifconfig.me || echo
 echo "[+] Detected Public IP: ${PUBLIC_IP}"
 
 echo "[+] Creating Nginx site configuration..."
-cat <<EOF > /etc/nginx/sites-available/algooee
+if [ -f "/etc/letsencrypt/live/algooee.in/fullchain.pem" ]; then
+  echo "[+] SSL certificate found. Configuring Nginx with HTTPS SSL..."
+  cat <<EOF > /etc/nginx/sites-available/algooee
+server {
+    listen 80;
+    server_name algooee.in www.algooee.in ${PUBLIC_IP};
+    return 301 https://algooee.in\$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name algooee.in www.algooee.in ${PUBLIC_IP};
+
+    ssl_certificate /etc/letsencrypt/live/algooee.in/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/algooee.in/privkey.pem;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+else
+  echo "[+] SSL certificate not found. Configuring Nginx with HTTP only..."
+  cat <<EOF > /etc/nginx/sites-available/algooee
 server {
     listen 80;
     server_name algooee.in www.algooee.in ${PUBLIC_IP};
@@ -127,6 +157,7 @@ server {
     }
 }
 EOF
+fi
 
 # Link Nginx site and test config
 if [ -f /etc/nginx/sites-enabled/default ]; then
