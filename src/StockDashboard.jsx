@@ -1,3 +1,4 @@
+import { themes } from "./theme";
 import { useState, useEffect } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
@@ -41,6 +42,46 @@ function DashboardContent({ currentUser, onLogout }) {
   const [selectedOptionContract, setSelectedOptionContract] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [showWatchlist, setShowWatchlist] = useState(false);
+  const [themeMode, setThemeMode] = useState(localStorage.getItem("theme") || "dark");
+
+  useEffect(() => {
+      localStorage.setItem("theme", themeMode);
+    }, [themeMode]);
+  
+  const theme = themeMode === "dark"
+    ? {
+        bg: "#060e17",
+        card: "#07101a",
+        card2: "#0a1520",
+        input: "#060e17",
+        border: "#1a2a3a",
+        text: "#cde",
+        text2: "#8899aa",
+        text3: "#667788"
+      }
+    : {
+        bg: "#f5f7fb",
+        card: "#ffffff",
+        card2: "#ffffff",
+        input: "#ffffff",
+        border: "#dbe3ee",
+        text: "#111827",
+        text2: "#6b7280",
+        text3: "#94a3b8"
+      };
+  const glassCard =
+      themeMode === "light"
+        ? {
+            background: "rgba(255,255,255,0.65)",
+            backdropFilter: "blur(18px)",
+            WebkitBackdropFilter: "blur(18px)",
+            border: "1px solid rgba(255,255,255,0.45)",
+            boxShadow: "0 8px 32px rgba(31,38,135,0.12)"
+          }
+        : {
+            background: theme.card2,
+            border: `1px solid ${theme.border}`
+          };
 
   useEffect(() => {
     const handleResize = () => {
@@ -206,7 +247,7 @@ function DashboardContent({ currentUser, onLogout }) {
 
   return (
     <div style={{
-      minHeight: "100vh", background: "#060e17", color: "#cde", fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
+      minHeight: "100vh", background: theme.bg, color: theme.text, fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
       display: "grid", gridTemplateColumns: (isMobile || activePage === "users") ? "1fr" : "280px 1fr", gridTemplateRows: isMobile ? "auto auto 1fr" : "60px 1fr"
     }}>
       {/* Header */}
@@ -216,7 +257,7 @@ function DashboardContent({ currentUser, onLogout }) {
         alignItems: isMobile ? "stretch" : "center",
         justifyContent: "space-between",
         padding: isMobile ? "12px 16px" : "0 28px",
-        borderBottom: "1px solid #1a2a3a", background: "#07101a",
+        borderBottom: `1px solid ${theme.border}`, background: theme.card,
         gap: isMobile ? 12 : 16,
         height: isMobile ? "auto" : "60px"
       }}>
@@ -226,15 +267,15 @@ function DashboardContent({ currentUser, onLogout }) {
               <img src="/logo.png" alt="ALGOOEE" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/logo.svg'; }} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
             </div>
             <div>
-              <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700, color: "#fff", letterSpacing: -0.5 }}>Algooee</span>
-              <span style={{ fontSize: 10, color: "#445566", marginLeft: 8, letterSpacing: 2 }}>STOCK INTELLIGENCE</span>
+              <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700, color: theme.text, letterSpacing: -0.5 }}>Algooee</span>
+              <span style={{ fontSize: 10, color: theme.text2, marginLeft: 8, letterSpacing: 2 }}>STOCK INTELLIGENCE</span>
             </div>
           </div>
           {isMobile && (
             <button
               onClick={() => setShowWatchlist(!showWatchlist)}
               style={{
-                background: "#0a1520", color: "#778899", border: "1px solid #1a2a3a",
+                background: theme.card2, color: "#778899", border: `1px solid ${theme.border}`,
                 borderRadius: 8, padding: "6px 12px", fontSize: 10, fontWeight: 700, cursor: "pointer"
               }}
             >
@@ -298,18 +339,43 @@ function DashboardContent({ currentUser, onLogout }) {
             )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 11, color: "#8899aa" }}>
-              User: <span style={{ color: "#fff", fontWeight: 600 }}>{currentUser?.email}</span>
+            <span style={{ fontSize: 11, color: theme.text2 }}>
+              User: <span style={{ color: theme.text, fontWeight: 600 }}>{currentUser?.email}</span>
             </span>
-            <div style={{ fontSize: 11, color: "#8899aa" }}>Wallet: <span style={{ color: "#00e5a0", fontWeight: 700 }}>{formatINR(paper.cash_balance)}</span></div>
+            <div style={{ fontSize: 11, color: theme.text2 }}>Wallet: <span style={{ color: "#00e5a0", fontWeight: 700 }}>{formatINR(paper.cash_balance)}</span></div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ background: "#1a2a3a", border: "1px solid #2a3a4a", color: "#778899", borderRadius: 20, padding: "4px 14px", fontSize: 10, fontWeight: 600, letterSpacing: 1 }}>
                 LIVE API
               </div>
               <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#00e5a0", boxShadow: "0 0 8px #00e5a0", animation: "pulse 2s infinite" }} />
             </div>
-            <button
-              onClick={onLogout}
+
+              <button
+                onClick={() =>
+                  setThemeMode(
+                    themeMode === "dark"
+                      ? "light"
+                      : "dark"
+                  )
+                }
+                style={{
+                  background: theme.card,
+                  color: theme.text,
+                  border: `1px solid ${theme.border}`,
+                  borderRadius: 8,
+                  padding: "6px 12px",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: "pointer"
+                }}
+              >
+                {themeMode === "dark"
+                  ? "☀️ LIGHT"
+                  : "🌙 DARK"}
+              </button>
+
+              <button
+                onClick={onLogout}
               style={{
                 background: "#2a1218", color: "#f87171", border: "1px solid #f8717155",
                 borderRadius: 8, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer",
@@ -327,26 +393,26 @@ function DashboardContent({ currentUser, onLogout }) {
       {/* Sidebar */}
       {(!isMobile || showWatchlist) && activePage !== "users" && (
         <div style={{
-          borderRight: isMobile ? "none" : "1px solid #1a2a3a",
-          borderBottom: isMobile ? "1px solid #1a2a3a" : "none",
-          padding: 16, overflowY: "auto", background: "#07101a",
+          borderRight: isMobile ? "none" : `1px solid ${theme.border}`,
+          borderBottom: isMobile ? `1px solid ${theme.border}` : "none",
+          padding: 16, overflowY: "auto", background: theme.card ,
           maxHeight: isMobile ? "300px" : "none"
         }}>
-        <div style={{ fontSize: 10, color: "#445566", letterSpacing: 2, marginBottom: 12, paddingLeft: 4 }}>WATCHLIST</div>
+        <div style={{ fontSize: 10, color: theme.text2, letterSpacing: 2, marginBottom: 12, paddingLeft: 4 }}>WATCHLIST</div>
         <div style={{ marginBottom: 10 }}>
           <input
             type="text" value={stockSearch} onChange={(e) => setStockSearch(e.target.value)}
             placeholder="Search by name or ISIN"
-            style={{ width: "100%", background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "9px 10px", fontSize: 12, outline: "none" }}
+            style={{ width: "100%", background:  themeMode === "light" ? "rgba(255,255,255,0.45)" : theme.input, border: `1px solid ${theme.border}`, color: "#cde", borderRadius: 8, padding: "9px 10px", fontSize: 12, outline: "none" }}
           />
         </div>
-        <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 10, padding: 10, marginBottom: 12, position: "relative" }}>
+        <div style={{ ...glassCard, borderRadius: 16, padding: 10, marginBottom: 12, position: "relative" }}>
           <div style={{ fontSize: 10, color: "#556677", marginBottom: 8, letterSpacing: 1 }}>ADD STOCK</div>
           <div style={{ position: "relative" }}>
             <input
               type="text" value={liveQuery} onChange={(e) => setLiveQuery(e.target.value)}
               placeholder="Search Live Upstox Equities..."
-              style={{ width: "100%", background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "8px 10px", fontSize: 11, outline: "none" }}
+              style={{ width: "100%", background:  themeMode === "light" ? "rgba(255,255,255,0.45)" : theme.input, border: `1px solid ${theme.border}`, color: "#cde", borderRadius: 8, padding: "8px 10px", fontSize: 11, outline: "none" }}
             />
             {searchLoading && (
               <span style={{ position: "absolute", right: 10, top: 8, fontSize: 10, color: "#556677" }}>
@@ -358,7 +424,7 @@ function DashboardContent({ currentUser, onLogout }) {
           {showDropdown && searchResults.length > 0 && (
             <div style={{
               position: "absolute", top: "100%", left: 0, right: 0,
-              background: "#08101a", border: "1px solid #142234",
+              background: theme.card, border: "1px solid #142234",
               borderRadius: 8, marginTop: 4, zIndex: 50,
               maxHeight: 180, overflowY: "auto",
               boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
@@ -376,7 +442,7 @@ function DashboardContent({ currentUser, onLogout }) {
                   onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                 >
                   <div>
-                    <div style={{ color: "#fff", fontWeight: 600 }}>{suggestion.trading_symbol}</div>
+                    <div style={{ color: theme.text, fontWeight: 600 }}>{suggestion.trading_symbol}</div>
                     <div style={{ color: "#556677", fontSize: 9 }}>{suggestion.name}</div>
                   </div>
                   <span style={{ color: "#00e5a0", fontSize: 9 }}>+ Add</span>
@@ -388,7 +454,7 @@ function DashboardContent({ currentUser, onLogout }) {
           {showDropdown && searchResults.length === 0 && liveQuery.trim() !== "" && !searchLoading && (
             <div style={{
               position: "absolute", top: "100%", left: 0, right: 0,
-              background: "#08101a", border: "1px solid #142234",
+              background: theme.card, border: "1px solid #142234",
               borderRadius: 8, marginTop: 4, zIndex: 50,
               padding: "10px", fontSize: 10, color: "#556677", textAlign: "center",
               boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
@@ -405,7 +471,7 @@ function DashboardContent({ currentUser, onLogout }) {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {visibleStocks.map(s => (
-            <StockCard key={s.ticker} ticker={s.ticker} name={s.name} meta={s} selected={selected === s.ticker}
+            <StockCard key={s.ticker} ticker={s.ticker} themeMode={themeMode} name={s.name} meta={s} selected={selected === s.ticker}
               data={stockData[s.ticker]} onClick={() => {
                 setSelected(s.ticker);
                 if (activePage === "options") {
@@ -428,6 +494,8 @@ function DashboardContent({ currentUser, onLogout }) {
           <OptionsChainView
             stocks={stocks}
             selectedUnderlying={optionUnderlying}
+            themeMode={themeMode}
+            theme={theme}
             setSelectedUnderlying={setOptionUnderlying}
             paper={paper}
             paperBusy={paperBusy}
@@ -439,7 +507,7 @@ function DashboardContent({ currentUser, onLogout }) {
           />
         ) : activePage === "admin" ? (
           paperLoading && !paperPortfolio ? (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60%", color: "#445566", fontSize: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60%", color: theme.text2, fontSize: 14 }}>
               Loading paper trading account…
             </div>
           ) : (
@@ -473,9 +541,9 @@ function DashboardContent({ currentUser, onLogout }) {
                       { label: "Total Profit / Loss", value: formatINR(paper.total_pnl), color: (paper.total_pnl ?? 0) >= 0 ? "#00e5a0" : "#ef4444", desc: "Unrealized P/L of open positions" },
                     ].map((item) => (
                       <div key={item.label} style={{
-                        background: "#08101a",
-                        borderRadius: 12, padding: "16px",
-                        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
+                        ...glassCard,
+                        borderRadius: 16,
+                        padding: "16px"
                       }}>
                         <div style={{ fontSize: 10, color: "#556a84", letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 6 }}>{item.label}</div>
                         <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: item.color, marginBottom: 4 }}>{item.value}</div>
@@ -486,8 +554,9 @@ function DashboardContent({ currentUser, onLogout }) {
 
                   {/* Open Positions Card */}
                   <div style={{
-                    background: "#08101a",
-                    borderRadius: 12, padding: "20px",
+                    ...glassCard,
+                    borderRadius: 16,
+                    padding: "20px",
                     boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
                   }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -517,15 +586,15 @@ function DashboardContent({ currentUser, onLogout }) {
                             display: "grid",
                             gridTemplateColumns: "1.3fr 1.1fr 1.0fr 0.9fr 1.0fr 1.2fr 0.9fr",
                             borderTop: "1px solid #142234", fontSize: 12,
-                            background: "#08101a", color: "#cde",
+                            background: theme.card, color: "#cde",
                             alignItems: "center"
                           }}>
                             <div style={{ padding: "12px 14px" }}>
-                              <div style={{ fontWeight: 600, color: "#fff" }}>{pos.name}</div>
+                              <div style={{ fontWeight: 600, color: theme.text }}>{pos.name}</div>
                               <div style={{ fontSize: 9, color: "#556a84", marginTop: 2, display: "flex", flexDirection: "column", gap: 2 }}>
                                 {pos.is_option && pos.expiry ? (
                                   <>
-                                    <span style={{ color: "#8899aa" }}>Expiry: <span style={{ color: "#cde" }}>{pos.expiry}</span></span>
+                                    <span style={{ color: theme.text2 }}>Expiry: <span style={{ color: "#cde" }}>{pos.expiry}</span></span>
                                     <span style={{ color: "#ffb077", fontWeight: 500 }}>({getDaysRemaining(pos.expiry)})</span>
                                   </>
                                 ) : (
@@ -539,7 +608,7 @@ function DashboardContent({ currentUser, onLogout }) {
                             <div style={{ padding: "12px 14px", fontFamily: "'Space Mono', monospace", color: "#9bb0c4" }}>
                               {formatINR(pos.avg_price)}
                             </div>
-                            <div style={{ padding: "12px 14px", fontFamily: "'Space Mono', monospace", color: "#e8f4ff" }}>
+                            <div style={{ padding: "12px 14px", fontFamily: "'Space Mono', monospace", color: theme.text }}>
                               {formatINR(pos.current_price)}
                             </div>
                             <div style={{
@@ -551,7 +620,7 @@ function DashboardContent({ currentUser, onLogout }) {
                               {formatINR(pos.unrealized_pnl)}
                             </div>
                             <div style={{ padding: "12px 14px", color: "#9bb0c4" }}>
-                              <div style={{ color: "#fff", fontFamily: "'Space Mono', monospace" }}>{formatExactDateTime(pos.updated_at)}</div>
+                              <div style={{ color: theme.text, fontFamily: "'Space Mono', monospace" }}>{formatExactDateTime(pos.updated_at)}</div>
                               <div style={{ fontSize: 10, color: "#00e5a0", marginTop: 2 }}>{formatPreciseRelativeTime(pos.updated_at)}</div>
                             </div>
                             <div style={{ padding: "8px 6px", display: "flex", gap: "4px", justifyContent: "center" }}>
@@ -667,9 +736,9 @@ function DashboardContent({ currentUser, onLogout }) {
 
                   {/* Admin Funding / Reset Control */}
                   <div style={{
-                    background: "#08101a",
-                    borderRadius: 12, padding: "20px",
-                    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
+                    ...glassCard,
+                    borderRadius: 16,
+                    padding: "20px"
                   }}>
                     <div style={{ fontSize: 12, color: "#9bb0c4", letterSpacing: 1, fontWeight: 700, marginBottom: 14 }}>ADMIN CONTROLS</div>
 
@@ -715,16 +784,16 @@ function DashboardContent({ currentUser, onLogout }) {
                     </div>
 
                     <div style={{ marginTop: 14, fontSize: 10, color: "#556a84", lineHeight: "1.4" }}>
-                      Total funded so far: <span style={{ color: "#e8f4ff", fontFamily: "'Space Mono', monospace" }}>{formatINR(paper.total_funded)}</span><br />
+                      Total funded so far: <span style={{ color: theme.text, fontFamily: "'Space Mono', monospace" }}>{formatINR(paper.total_funded)}</span><br />
                       P/L vs funded: <span style={{ color: (paper.pnl_vs_funded ?? 0) >= 0 ? "#00e5a0" : "#ef4444", fontFamily: "'Space Mono', monospace", fontWeight: 600 }}>{formatINR(paper.pnl_vs_funded)}</span>
                     </div>
                   </div>
 
                   {/* Unified Activity Log (Cleaned up trades / ledger) */}
                   <div style={{
-                    background: "#08101a",
-                    borderRadius: 12, padding: "20px",
-                    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
+                    ...glassCard,
+                    borderRadius: 16,
+                    padding: "20px"
                   }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                       <div style={{ fontSize: 12, color: "#9bb0c4", letterSpacing: 1, fontWeight: 700 }}>RECENT TRANSACTION LOG</div>
@@ -739,7 +808,7 @@ function DashboardContent({ currentUser, onLogout }) {
                             display: "grid", gridTemplateColumns: "1fr auto", gap: "4px"
                           }}>
                             <div>
-                              <div style={{ fontSize: 11, fontWeight: 600, color: "#fff" }}>
+                              <div style={{ fontSize: 11, fontWeight: 600, color: theme.text }}>
                                 <span style={{
                                   color: trade.side === "buy" ? "#00e5a0" : "#ef4444",
                                   marginRight: 6, textTransform: "uppercase", fontSize: 9, fontWeight: 800,
@@ -753,7 +822,7 @@ function DashboardContent({ currentUser, onLogout }) {
                               <div style={{ fontSize: 9, color: "#556a84", marginTop: 4 }}>
                                 {trade.is_option && trade.expiry ? (
                                   <div style={{ marginBottom: 4 }}>
-                                    <span style={{ color: "#8899aa" }}>Expiry: <span style={{ color: "#cde" }}>{trade.expiry}</span></span>
+                                    <span style={{ color: theme.text2 }}>Expiry: <span style={{ color: "#cde" }}>{trade.expiry}</span></span>
                                     <span style={{ color: "#ffb077", marginLeft: 4 }}>({getDaysRemaining(trade.expiry)})</span>
                                   </div>
                                 ) : null}
@@ -787,7 +856,7 @@ function DashboardContent({ currentUser, onLogout }) {
             </div>
           )
         ) : loading && !data ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60%", color: "#445566", fontSize: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60%", color: theme.text2, fontSize: 14 }}>
             Loading predictions…
           </div>
         ) : data ? (
@@ -807,7 +876,7 @@ function DashboardContent({ currentUser, onLogout }) {
                     const displayName = metaObj.name || data?.name || selected;
                     return (
                       <>
-                        <h1 style={{ fontFamily: "'Space Mono', monospace", fontSize: 28, margin: 0, color: "#fff" }}>{displayName}</h1>
+                        <h1 style={{ fontFamily: "'Space Mono', monospace", fontSize: 28, margin: 0, color: theme.text}}>{displayName}</h1>
                         <span style={{ fontSize: 14, color: "#667788" }}>{selected}</span>
                       </>
                     );
@@ -815,15 +884,15 @@ function DashboardContent({ currentUser, onLogout }) {
                 </div>
                 <div style={{ display: "flex", gap: 12, marginTop: 6, alignItems: "center" }}>
                   <div>
-                    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 22, color: "#e8f4ff", fontWeight: 700 }}>{formatINR(todayPrice ?? data?.lastPrice)}</div>
-                    <div style={{ fontSize: 12, color: "#8899aa", marginTop: 4 }}>
+                    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 22, color: theme.text, fontWeight: 700 }}>{formatINR(todayPrice ?? data?.lastPrice)}</div>
+                    <div style={{ fontSize: 12, color: theme.text2, marginTop: 4 }}>
                       Today: {formatINR(todayPrice)} · Predicted: {formatINR(predictedVal)}
                     </div>
                   </div>
                   <span style={{ color: data?.changePct >= 0 ? "#4ade80" : "#f87171", fontSize: 14, fontWeight: 600 }}>
                     {data?.changePct >= 0 ? "▲" : "▼"} {Math.abs(data?.change ?? 0)} ({Math.abs(data?.changePct ?? 0)}%)
                   </span>
-                  <span style={{ fontSize: 11, color: "#445566" }}>15D</span>
+                  <span style={{ fontSize: 11, color: theme.text2 }}>15D</span>
                 </div>
               </div>
               <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
@@ -832,7 +901,7 @@ function DashboardContent({ currentUser, onLogout }) {
             </div>
 
             {/* Paper Trade */}
-            <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: 18, marginBottom: 20 }}>
+            <div style={{ ...glassCard, borderRadius: 16, padding: 18, marginBottom: 20 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <div style={{ fontSize: 11, color: "#667788", letterSpacing: 1 }}>PAPER TRADE · QUANTITY BASED</div>
                 <div style={{ fontSize: 12, color: "#00e5a0", fontWeight: 700 }}>Cash: {formatINR(paper.cash_balance)}</div>
@@ -841,19 +910,19 @@ function DashboardContent({ currentUser, onLogout }) {
                 <input
                   type="number" min="1" step="1" value={tradeAmount} onChange={(e) => setTradeAmount(e.target.value)}
                   placeholder="Quantity (shares)"
-                  style={{ background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "10px 12px", width: isMobile ? "100%" : 220, outline: "none" }}
+                  style={{ background:  themeMode === "light" ? "rgba(255,255,255,0.45)" : theme.input, border: `1px solid ${theme.border}`, color: "#cde", borderRadius: 8, padding: "10px 12px", width: isMobile ? "100%" : 220, outline: "none" }}
                 />
                 <input
                   type="number" min="0" step="0.01" value={tradePrice} onChange={(e) => setTradePrice(e.target.value)}
                   placeholder="Execution price"
-                  style={{ background: "#060e17", border: "1px solid #1a2a3a", color: "#cde", borderRadius: 8, padding: "10px 12px", width: isMobile ? "100%" : 170, outline: "none" }}
+                  style={{ background:  themeMode === "light" ? "rgba(255,255,255,0.45)" : theme.input, border: `1px solid ${theme.border}`, color: "#cde", borderRadius: 8, padding: "10px 12px", width: isMobile ? "100%" : 170, outline: "none" }}
                 />
                 <button
                   onClick={() => {
                     const live = Number(todayPrice ?? data?.lastPrice);
                     if (Number.isFinite(live) && live > 0) setTradePrice(live.toFixed(2));
                   }}
-                  style={{ background: "#081321", color: "#9bb0c4", border: "1px solid #1a2a3a", borderRadius: 8, padding: "9px 12px", fontSize: 11, cursor: "pointer" }}
+                  style={{ background: "#081321", color: "#9bb0c4", border: `1px solid ${theme.border}`, borderRadius: 8, padding: "9px 12px", fontSize: 11, cursor: "pointer" }}
                 >
                   Use Today
                 </button>
@@ -871,7 +940,7 @@ function DashboardContent({ currentUser, onLogout }) {
                 </button>
               </div>
               {tradeAmount && (
-                <div style={{ fontSize: 11, color: "#8899aa" }}>
+                <div style={{ fontSize: 11, color: theme.text2 }}>
                   Est. Cost: <span style={{ color: "#00e5a0", fontWeight: 600 }}>{formatINR(Number(tradeAmount) * Number(tradePrice || todayPrice || data?.lastPrice || 0))}</span>
                 </div>
               )}
@@ -884,7 +953,7 @@ function DashboardContent({ currentUser, onLogout }) {
             </div>
 
             {/* Chart */}
-            <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: "20px 16px", marginBottom: 20 }}>
+            <div style={{ ...glassCard, borderRadius: 16, padding: "20px 16px", marginBottom: 20 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, paddingRight: 8 }}>
                 <span style={{ fontSize: 12, color: "#667788", letterSpacing: 1 }}>LAST 10 DAYS + NEXT 1 DAY · ACTUAL & PREDICTED</span>
                 <div style={{ display: "flex", gap: 16, fontSize: 11 }}>
@@ -909,8 +978,8 @@ function DashboardContent({ currentUser, onLogout }) {
             </div>
 
             {/* Prediction Details */}
-            <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: 20, marginBottom: 20 }}>
-              <div style={{ fontSize: 10, color: "#445566", letterSpacing: 2, marginBottom: 14 }}>PREDICTION DETAILS</div>
+            <div style={{ ...glassCard, borderRadius: 16, padding: 20, marginBottom: 20 }}>
+              <div style={{ fontSize: 10, color: theme.text2, letterSpacing: 2, marginBottom: 14 }}>PREDICTION DETAILS</div>
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(6, minmax(0, 1fr))", gap: 12, marginBottom: 16 }}>
                 {[
                   { label: "Next Day Range", value: `${formatINR(data.p10)} - ${formatINR(data.p90)}`, note: "p10 to p90" },
@@ -920,25 +989,33 @@ function DashboardContent({ currentUser, onLogout }) {
                   { label: "Range Cover", value: formatPercent(intervalCoverage, 1), note: "Actual inside range" },
                   { label: "Model Edge", value: formatPercent(modelEdgePct, 1), note: "vs simple baseline" },
                 ].map((metric) => (
-                  <div key={metric.label} style={{ background: "#060e17", border: "1px solid #1a2a3a", borderRadius: 8, padding: "12px 14px" }}>
-                    <div style={{ fontSize: 10, color: "#445566", letterSpacing: 1, marginBottom: 6 }}>{metric.label}</div>
-                    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 700, color: "#e8f4ff", marginBottom: 4 }}>{metric.value}</div>
+                  <div key={metric.label} style={{ background:  themeMode === "light" ? "rgba(255,255,255,0.45)" : theme.input, border: `1px solid ${theme.border}`, borderRadius: 8, padding: "12px 14px" }}>
+                    <div style={{ fontSize: 10, color: theme.text2, letterSpacing: 1, marginBottom: 6 }}>{metric.label}</div>
+                    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 700, color: theme.text, marginBottom: 4 }}>{metric.value}</div>
                     <div style={{ fontSize: 10, color: "#667788" }}>{metric.note}</div>
                   </div>
                 ))}
               </div>
 
-              <div style={{ border: "1px solid #1a2a3a", borderRadius: 8, overflow: "hidden" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: 0, background: "#081321", color: "#667788", fontSize: 10, letterSpacing: 1, textTransform: "uppercase" }}>
-                  <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a" }}>Date</div>
-                  <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a" }}>Predicted</div>
+              <div style={{ border: `1px solid ${theme.border}`, borderRadius: 8, overflow: "hidden" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: 0, background:
+                  themeMode === "light"
+                    ? "linear-gradient(135deg,#1e40af,#2563eb)"
+                    : "#081321",
+
+                color:
+                  themeMode === "light"
+                    ? "#ffffff"
+                    : "#667788", fontSize: 10, letterSpacing: 1, textTransform: "uppercase" }}>
+                  <div style={{ padding: "10px 12px", borderRight: `1px solid ${theme.border}` }}>Date</div>
+                  <div style={{ padding: "10px 12px", borderRight: `1px solid ${theme.border}` }}>Predicted</div>
                   <div style={{ padding: "10px 12px" }}>Range</div>
                 </div>
                 {forecastRows.length ? (
                   forecastRows.map((row) => (
-                    <div key={row.ts} style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: 0, borderTop: "1px solid #1a2a3a", fontSize: 12 }}>
-                      <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a", color: "#9bb0c4" }}>{row.dateLabel}</div>
-                      <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a", color: "#00e5a0", fontWeight: 600 }}>{formatINR(row.price)}</div>
+                    <div key={row.ts} style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: 0, borderTop: `1px solid ${theme.border}`, fontSize: 12 }}>
+                      <div style={{ padding: "10px 12px", borderRight: `1px solid ${theme.border}`, color: "#9bb0c4" }}>{row.dateLabel}</div>
+                      <div style={{ padding: "10px 12px", borderRight: `1px solid ${theme.border}`, color: "#00e5a0", fontWeight: 600 }}>{formatINR(row.price)}</div>
                       <div style={{ padding: "10px 12px", color: "#7cc8ad" }}>
                         {Number.isFinite(row.lower) && Number.isFinite(row.upper) ? `${formatINR(row.lower)} - ${formatINR(row.upper)}` : "—"}
                       </div>
@@ -950,21 +1027,29 @@ function DashboardContent({ currentUser, onLogout }) {
               </div>
 
               <div style={{ overflowX: "auto" }}>
-                <div style={{ border: "1px solid #1a2a3a", borderRadius: 8, overflow: "hidden", minWidth: isMobile ? "500px" : "auto", marginTop: 16 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 0.8fr", gap: 0, background: "#081321", color: "#667788", fontSize: 10, letterSpacing: 1, textTransform: "uppercase" }}>
-                  <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a" }}>Backtest</div>
-                  <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a" }}>Actual</div>
-                  <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a" }}>Predicted</div>
-                  <div style={{ padding: "10px 12px", borderRight: "1px solid #1a2a3a" }}>Error</div>
+                <div style={{ border: `1px solid ${theme.border}`, borderRadius: 8, overflow: "hidden", minWidth: isMobile ? "500px" : "auto", marginTop: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 0.8fr", gap: 0, background:
+                  themeMode === "light"
+                    ? "linear-gradient(135deg,#1e40af,#2563eb)"
+                    : "#081321",
+
+                color:
+                  themeMode === "light"
+                    ? "#ffffff"
+                    : "#667788", fontSize: 10, letterSpacing: 1, textTransform: "uppercase" }}>
+                  <div style={{ padding: "10px 12px", borderRight: `1px solid ${theme.border}` }}>Backtest</div>
+                  <div style={{ padding: "10px 12px", borderRight: `1px solid ${theme.border}` }}>Actual</div>
+                  <div style={{ padding: "10px 12px", borderRight: `1px solid ${theme.border}` }}>Predicted</div>
+                  <div style={{ padding: "10px 12px", borderRight: `1px solid ${theme.border}` }}>Error</div>
                   <div style={{ padding: "10px 12px" }}>Hit</div>
                 </div>
                 {backtestRows.length ? (
                   backtestRows.map((row) => (
-                    <div key={`bt-${row.ts}`} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 0.8fr", gap: 0, borderTop: "1px solid #1a2a3a", fontSize: 12 }}>
-                      <div style={{ padding: "9px 12px", borderRight: "1px solid #1a2a3a", color: "#9bb0c4" }}>{row.dateLabel}</div>
-                      <div style={{ padding: "9px 12px", borderRight: "1px solid #1a2a3a", color: "#4a9eff" }}>{formatINR(row.actual)}</div>
-                      <div style={{ padding: "9px 12px", borderRight: "1px solid #1a2a3a", color: "#00e5a0" }}>{formatINR(row.predicted)}</div>
-                      <div style={{ padding: "9px 12px", borderRight: "1px solid #1a2a3a", color: "#facc15" }}>
+                    <div key={`bt-${row.ts}`} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 0.8fr", gap: 0, borderTop: `1px solid ${theme.border}`, fontSize: 12 }}>
+                      <div style={{ padding: "9px 12px", borderRight: `1px solid ${theme.border}`, color: "#9bb0c4" }}>{row.dateLabel}</div>
+                      <div style={{ padding: "9px 12px", borderRight: `1px solid ${theme.border}`, color: "#4a9eff" }}>{formatINR(row.actual)}</div>
+                      <div style={{ padding: "9px 12px", borderRight: `1px solid ${theme.border}`, color: "#00e5a0" }}>{formatINR(row.predicted)}</div>
+                      <div style={{ padding: "9px 12px", borderRight: `1px solid ${theme.border}`, color: "#facc15" }}>
                         {formatINR(row.absError)} {Number.isFinite(row.errorPct) ? `(${formatPercent(row.errorPct, 1)})` : ""}
                       </div>
                       <div style={{ padding: "9px 12px", color: row.directionalHit ? "#4ade80" : "#f87171", fontWeight: 700 }}>
@@ -982,8 +1067,8 @@ function DashboardContent({ currentUser, onLogout }) {
             {/* Stats row */}
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 16, marginBottom: 20 }}>
               {/* Trend */}
-              <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: 18 }}>
-                <div style={{ fontSize: 10, color: "#445566", letterSpacing: 2, marginBottom: 12 }}>TREND ANALYSIS</div>
+              <div style={{ ...glassCard, borderRadius: 16, padding: 18 }}>
+                <div style={{ fontSize: 10, color: theme.text2, letterSpacing: 2, marginBottom: 12 }}>TREND ANALYSIS</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                   <span style={{ fontSize: 22, color: trendColor, fontFamily: "'Space Mono', monospace", fontWeight: 700 }}>{data.trend}</span>
                 </div>
@@ -995,22 +1080,22 @@ function DashboardContent({ currentUser, onLogout }) {
               </div>
 
               {/* Risk */}
-              <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: 18 }}>
-                <div style={{ fontSize: 10, color: "#445566", letterSpacing: 2, marginBottom: 12 }}>RISK ASSESSMENT</div>
+              <div style={{ ...glassCard, borderRadius: 16, padding: 18 }}>
+                <div style={{ fontSize: 10, color: theme.text2, letterSpacing: 2, marginBottom: 12 }}>RISK ASSESSMENT</div>
                 <RiskMeter score={data.riskScore} />
-                <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", fontSize: 11, color: "#445566" }}>
+                <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", fontSize: 11, color: theme.text2 }}>
                   <span>Low</span><span>Medium</span><span>High</span>
                 </div>
               </div>
 
               {/* Confidence */}
-              <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: 18 }}>
-                <div style={{ fontSize: 10, color: "#445566", letterSpacing: 2, marginBottom: 12 }}>MODEL CONFIDENCE</div>
+              <div style={{ ...glassCard, borderRadius: 16, padding: 18 }}>
+                <div style={{ fontSize: 10, color: theme.text2, letterSpacing: 2, marginBottom: 12 }}>MODEL CONFIDENCE</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginTop: 8 }}>
                   <ConfidenceRing value={data.confidence} />
                   <div>
                     <div style={{ fontSize: 22, fontWeight: 700, color: "#00e5a0", fontFamily: "'Space Mono', monospace" }}>{Math.round(Number(data.confidence) || 0)}%</div>
-                    <div style={{ fontSize: 11, color: "#445566", marginTop: 4 }}>Prediction confidence</div>
+                    <div style={{ fontSize: 11, color: theme.text2, marginTop: 4 }}>Prediction confidence</div>
                     <div style={{ fontSize: 11, color: data.confidence > 75 ? "#4ade80" : data.confidence > 55 ? "#facc15" : "#f87171", marginTop: 2 }}>
                       {data.confidence > 75 ? "● High confidence" : data.confidence > 55 ? "● Moderate" : "● Low confidence"}
                     </div>
@@ -1020,8 +1105,8 @@ function DashboardContent({ currentUser, onLogout }) {
             </div>
 
             {/* Technical Indicators */}
-            <div style={{ background: "#0a1520", border: "1px solid #1a2a3a", borderRadius: 12, padding: 20 }}>
-              <div style={{ fontSize: 10, color: "#445566", letterSpacing: 2, marginBottom: 16 }}>TECHNICAL INDICATORS</div>
+            <div style={{ ...glassCard, borderRadius: 16, padding: 20 }}>
+              <div style={{ fontSize: 10, color: theme.text2, letterSpacing: 2, marginBottom: 16 }}>TECHNICAL INDICATORS</div>
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)", gap: 12 }}>
                 {[
                   { label: "RSI (14)", value: data.indicators.rsi, note: data.indicators.rsi > 70 ? "Overbought" : data.indicators.rsi < 30 ? "Oversold" : "Neutral", color: data.indicators.rsi > 70 ? "#f87171" : data.indicators.rsi < 30 ? "#4ade80" : "#facc15" },
@@ -1030,9 +1115,9 @@ function DashboardContent({ currentUser, onLogout }) {
                   { label: "EMA 50", value: formatINR(data.indicators.ema50), note: data.lastPrice > data.indicators.ema50 ? "Above" : "Below", color: data.lastPrice > data.indicators.ema50 ? "#4ade80" : "#f87171" },
                   { label: "Volume", value: data.indicators.volume, note: "Avg Daily", color: "#778899" },
                 ].map(ind => (
-                  <div key={ind.label} style={{ background: "#060e17", border: "1px solid #1a2a3a", borderRadius: 8, padding: "12px 14px" }}>
-                    <div style={{ fontSize: 10, color: "#445566", letterSpacing: 1, marginBottom: 6 }}>{ind.label}</div>
-                    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: "#e8f4ff", marginBottom: 4 }}>{ind.value}</div>
+                  <div key={ind.label} style={{ background:  themeMode === "light" ? "rgba(255,255,255,0.45)" : theme.input, border: `1px solid ${theme.border}`, borderRadius: 8, padding: "12px 14px" }}>
+                    <div style={{ fontSize: 10, color: theme.text2, letterSpacing: 1, marginBottom: 6 }}>{ind.label}</div>
+                    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: theme.text, marginBottom: 4 }}>{ind.value}</div>
                     <div style={{ fontSize: 10, color: ind.color, fontWeight: 600 }}>{ind.note}</div>
                   </div>
                 ))}

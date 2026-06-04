@@ -19,6 +19,8 @@ async function authFetch(url, options = {}) {
 export default function OptionsChainView({
   stocks,
   selectedUnderlying,
+  themeMode,
+  theme,
   setSelectedUnderlying,
   paper,
   paperBusy,
@@ -42,6 +44,25 @@ export default function OptionsChainView({
   const [tradePrice, setTradePrice] = useState("");
   const [tradeNotice, setTradeNotice] = useState("");
 
+  const isLight = themeMode === "light";
+
+  const cardStyle = isLight
+    ? {
+        background: "rgba(255,255,255,0.65)",
+        backdropFilter: "blur(18px)",
+        WebkitBackdropFilter: "blur(18px)",
+        border: "1px solid rgba(255,255,255,0.5)",
+        boxShadow: "0 8px 24px rgba(37,99,235,.12)"
+      }
+    : {
+        background: "#08101a",
+        border: "1px solid #142234"
+      };
+
+  const blueHeader = isLight
+    ? "linear-gradient(135deg,#2563eb,#3b82f6)"
+    : "#0c1827";
+    
   // Options list for underlying selector
   const underlyingOptions = [
     { value: "NIFTY", label: "NIFTY 50 (Index)" },
@@ -200,7 +221,7 @@ export default function OptionsChainView({
     <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "24px" }}>
       {/* Expiry and Underlying Selectors */}
       <div style={{
-        background: "#08101a", border: "1px solid #142234",
+        ...cardStyle,
         borderRadius: 12, padding: isMobile ? "16px" : "18px 24px",
         display: "flex", flexDirection: isMobile ? "column" : "row",
         alignItems: isMobile ? "stretch" : "center", justifyContent: "space-between",
@@ -217,8 +238,14 @@ export default function OptionsChainView({
                 setSelectedUnderlying(e.target.value);
               }}
               style={{
-                background: "#050b12", border: "1px solid #142234",
-                color: "#cde", borderRadius: 8, padding: "8px 12px",
+                background: isLight
+                ? "rgba(255,255,255,.5)"
+                : "#050b12",
+
+              color: isLight
+                ? "#111827"
+                : "#cde", border: "1px solid #142234",
+                borderRadius: 8, padding: "8px 12px",
                 fontSize: 12, outline: "none", cursor: "pointer",
                 width: isMobile ? "100%" : "auto"
               }}
@@ -236,8 +263,14 @@ export default function OptionsChainView({
               onChange={(e) => setSelectedExpiry(e.target.value)}
               disabled={expiries.length === 0}
               style={{
-                background: "#050b12", border: "1px solid #142234",
-                color: "#cde", borderRadius: 8, padding: "8px 12px",
+                background: isLight
+                  ? "rgba(255,255,255,.5)"
+                  : "#050b12",
+
+                color: isLight
+                  ? "#111827"
+                  : "#cde",border: "1px solid #142234",
+                borderRadius: 8, padding: "8px 12px",
                 fontSize: 12, outline: "none", cursor: "pointer",
                 width: isMobile ? "100%" : "auto"
               }}
@@ -287,7 +320,7 @@ export default function OptionsChainView({
         
         {/* Left Side: Option Chain Table */}
         <div style={{
-          background: "#08101a", border: "1px solid #142234",
+          ...cardStyle,
           borderRadius: 12, padding: "20px",
           boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)",
           overflowX: "auto"
@@ -310,7 +343,7 @@ export default function OptionsChainView({
               <div style={{
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr 1fr 1.2fr 0.8fr 1fr 0.8fr 1.2fr 1fr 1fr 1fr",
-                background: "#0c1827", color: "#556a84",
+                background: blueHeader, color: "#ffffff",
                 fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase",
                 textAlign: "center", borderBottom: "1px solid #142234"
               }}>
@@ -344,8 +377,19 @@ export default function OptionsChainView({
                         gridTemplateColumns: "1fr 1fr 1fr 1.2fr 0.8fr 1fr 0.8fr 1.2fr 1fr 1fr 1fr",
                         borderBottom: "1px solid #142234",
                         fontSize: 11,
-                        background: isAtm ? "#0a2228" : "#08101a",
-                        color: "#cde",
+                        background: isLight
+                          ? (
+                              isAtm
+                                ? "rgba(37,99,235,.15)"
+                                : "rgba(255,255,255,.35)"
+                            )
+                          : (
+                              isAtm
+                                ? "#0a2228"
+                                : "#08101a"
+                            ),
+
+                        color: isLight ? "#111827" : "#cde",
                         alignItems: "center",
                         textAlign: "center"
                       }}
@@ -391,7 +435,11 @@ export default function OptionsChainView({
                       {/* STRIKE PRICE */}
                       <div style={{
                         padding: "8px 4px", borderRight: "1px solid #142234",
-                        background: "#0a1320", color: "#fff", fontWeight: 700,
+                        background: isLight
+                          ? "#1d4ed8"
+                          : "#0a1320",
+
+                        color: "#fff", fontWeight: 700,
                         fontFamily: "'Space Mono', monospace"
                       }}>
                         {row.strike_price}
@@ -445,7 +493,7 @@ export default function OptionsChainView({
         {/* Right Side: Options Quick Trade panel */}
         {tradeContract && (
           <div style={{
-            background: "#08101a", border: "1px solid #142234",
+            ...cardStyle,
             borderRadius: 12, padding: isMobile ? "16px" : "20px",
             boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)",
             position: isMobile ? "static" : "sticky", top: 20
@@ -521,8 +569,14 @@ export default function OptionsChainView({
                   type="number" min={tradeContract.lotSize} step={tradeContract.lotSize} value={tradeAmount} onChange={(e) => setTradeAmount(e.target.value)}
                   placeholder={`E.g. ${tradeContract.lotSize}, ${tradeContract.lotSize * 2}, etc.`}
                   style={{
-                    width: "100%", background: "#050b12", border: "1px solid #142234",
-                    color: "#cde", borderRadius: 8, padding: "10px 12px",
+                    width: "100%", background: isLight
+                      ? "rgba(255,255,255,.5)"
+                      : "#050b12",
+
+                    color: isLight
+                      ? "#111827"
+                      : "#cde",border: "1px solid #142234",
+                    borderRadius: 8, padding: "10px 12px",
                     fontSize: 12, outline: "none"
                   }}
                 />
@@ -536,8 +590,14 @@ export default function OptionsChainView({
                     type="number" min="0" step="0.01" value={tradePrice} onChange={(e) => setTradePrice(e.target.value)}
                     placeholder="Premium Price"
                     style={{
-                      flex: 1, background: "#050b12", border: "1px solid #142234",
-                      color: "#cde", borderRadius: 8, padding: "10px 12px",
+                      flex: 1, background: isLight
+                        ? "rgba(255,255,255,.5)"
+                        : "#050b12",
+
+                      color: isLight
+                        ? "#111827"
+                        : "#cde", border: "1px solid #142234",
+                      borderRadius: 8, padding: "10px 12px",
                       fontSize: 12, outline: "none"
                     }}
                   />
