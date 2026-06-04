@@ -116,7 +116,7 @@ echo "[+] Creating Nginx site configuration..."
 cat <<EOF > /etc/nginx/sites-available/algooee
 server {
     listen 80;
-    server_name ${PUBLIC_IP};
+    server_name algooee.in www.algooee.in ${PUBLIC_IP};
 
     location / {
         proxy_pass http://127.0.0.1:8000;
@@ -140,7 +140,33 @@ fi
 nginx -t
 systemctl restart nginx
 
-# --- 10. Summary & Domain Info ---
+# --- 10. SSL Certificate (Let's Encrypt) Setup ---
+if [ ! -f "/etc/letsencrypt/live/algooee.in/fullchain.pem" ]; then
+  echo "[+] Checking DNS configuration for algooee.in..."
+  # Resolve domain IP using Google DNS API
+  DOMAIN_IP=$(curl -s --max-time 5 "https://dns.google/resolve?name=algooee.in" | grep -oE '"data":"[0-9.]+"' | cut -d'"' -f4 | head -n1 || echo "")
+  
+  if [ "$DOMAIN_IP" = "$PUBLIC_IP" ]; then
+    echo "[+] DNS is correctly pointed to this server. Installing SSL..."
+    apt-get install -y certbot python3-certbot-nginx
+    read -p "Enter your email for Let's Encrypt SSL alerts (e.g. admin@algooee.in): " SSL_EMAIL
+    if [ -n "$SSL_EMAIL" ]; then
+      certbot --nginx -d algooee.in -d www.algooee.in --non-interactive --agree-tos --email "$SSL_EMAIL" --redirect
+      echo "[+] SSL certificate successfully configured!"
+    else
+      echo "[!] No email provided. Skipping SSL setup."
+    fi
+  else
+    echo "[!] Warning: Domain 'algooee.in' does not point to this server's IP ($PUBLIC_IP) yet."
+    echo "    (Current DNS IP: ${DOMAIN_IP:-None})"
+    echo "    Once you point your domain to $PUBLIC_IP in your DNS registrar, run this script again"
+    echo "    to configure SSL/HTTPS automatically."
+  fi
+else
+  echo "[+] SSL Certificate is already installed and active."
+fi
+
+# --- 11. Summary & Domain Info ---
 echo ""
 echo "========================================================================="
 echo "                        DEPLOYMENT SUCCESSFUL                            "
@@ -158,7 +184,10 @@ echo "   - After updating .env, restart the service with:"
 echo "     sudo systemctl restart algooee"
 echo "   - View real-time logs with:"
 echo "     sudo journalctl -u algooee -f"
-echo "   - Secure your domain with SSL/HTTPS by running:"
-echo "     sudo apt install certbot python3-certbot-nginx -y"
-echo "     sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com"
+if [ ! -f "/etc/letsencrypt/live/algooee.in/fullchain.pem" ]; then
+  echo "   - Once DNS points to your server, configure HTTPS by running this script again."
+else
+  echo "   - HTTPS is fully configured and active at https://algooee.in"
+fi
 echo "========================================================================="
+
