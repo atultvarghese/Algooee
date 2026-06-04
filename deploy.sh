@@ -172,30 +172,47 @@ nginx -t
 systemctl restart nginx
 
 # --- 10. SSL Certificate (Let's Encrypt) Setup ---
-if [ ! -f "/etc/letsencrypt/live/algooee.in/fullchain.pem" ]; then
-  echo "[+] Checking DNS configuration for algooee.in and www.algooee.in..."
-  # Resolve domain IPs using Google DNS API
-  DOMAIN_IP=$(curl -s --max-time 5 "https://dns.google/resolve?name=algooee.in" | grep -oE '"data":"[0-9.]+"' | cut -d'"' -f4 | head -n1 || echo "")
-  WWW_IP=$(curl -s --max-time 5 "https://dns.google/resolve?name=www.algooee.in" | grep -oE '"data":"[0-9.]+"' | cut -d'"' -f4 | head -n1 || echo "")
-  
-  CERT_DOMAINS=""
-  if [ "$DOMAIN_IP" = "$PUBLIC_IP" ]; then
-    CERT_DOMAINS="-d algooee.in"
-  fi
-  if [ "$WWW_IP" = "$PUBLIC_IP" ]; then
-    if [ -n "$CERT_DOMAINS" ]; then
-      CERT_DOMAINS="$CERT_DOMAINS -d www.algooee.in"
-    else
-      CERT_DOMAINS="-d www.algooee.in"
-    fi
-  fi
+echo "[+] Checking DNS configuration for algooee.in and www.algooee.in..."
+# Resolve domain IPs using Google DNS API
+DOMAIN_IP=$(curl -s --max-time 5 "https://dns.google/resolve?name=algooee.in" | grep -oE '"data":"[0-9.]+"' | cut -d'"' -f4 | head -n1 || echo "")
+WWW_IP=$(curl -s --max-time 5 "https://dns.google/resolve?name=www.algooee.in" | grep -oE '"data":"[0-9.]+"' | cut -d'"' -f4 | head -n1 || echo "")
 
+CERT_DOMAINS=""
+if [ "$DOMAIN_IP" = "$PUBLIC_IP" ]; then
+  CERT_DOMAINS="-d algooee.in"
+fi
+if [ "$WWW_IP" = "$PUBLIC_IP" ]; then
   if [ -n "$CERT_DOMAINS" ]; then
-    echo "[+] DNS points to this server for: $CERT_DOMAINS. Installing SSL..."
+    CERT_DOMAINS="$CERT_DOMAINS -d www.algooee.in"
+  else
+    CERT_DOMAINS="-d www.algooee.in"
+  fi
+fi
+
+# Check if current certificate covers www.algooee.in
+COVERS_WWW=false
+if [ -f "/etc/letsencrypt/live/algooee.in/fullchain.pem" ]; then
+  if openssl x509 -text -noout -in /etc/letsencrypt/live/algooee.in/fullchain.pem | grep -q "DNS:www.algooee.in"; then
+    COVERS_WWW=true
+  fi
+fi
+
+NEED_SSL=false
+if [ ! -f "/etc/letsencrypt/live/algooee.in/fullchain.pem" ]; then
+  NEED_SSL=true
+elif [ "$WWW_IP" = "$PUBLIC_IP" ] && [ "$COVERS_WWW" = "false" ]; then
+  echo "[+] DNS for www.algooee.in has propagated, but current SSL certificate does not cover it."
+  echo "[+] We will request an expanded certificate."
+  NEED_SSL=true
+fi
+
+if [ "$NEED_SSL" = "true" ]; then
+  if [ -n "$CERT_DOMAINS" ]; then
+    echo "[+] DNS points to this server for: $CERT_DOMAINS. Installing/Updating SSL..."
     apt-get install -y certbot python3-certbot-nginx
     read -p "Enter your email for Let's Encrypt SSL alerts (e.g. admin@algooee.in): " SSL_EMAIL
     if [ -n "$SSL_EMAIL" ]; then
-      certbot --nginx $CERT_DOMAINS --non-interactive --agree-tos --email "$SSL_EMAIL" --redirect
+      certbot --nginx $CERT_DOMAINS --non-interactive --agree-tos --email "$SSL_EMAIL" --redirect --expand
       echo "[+] SSL certificate successfully configured!"
     else
       echo "[!] No email provided. Skipping SSL setup."
@@ -207,7 +224,7 @@ if [ ! -f "/etc/letsencrypt/live/algooee.in/fullchain.pem" ]; then
     echo "    to configure SSL/HTTPS automatically."
   fi
 else
-  echo "[+] SSL Certificate is already installed and active."
+  echo "[+] SSL Certificate is already installed, active, and fully covers your active domains."
 fi
 
 # --- 11. Summary & Domain Info ---
