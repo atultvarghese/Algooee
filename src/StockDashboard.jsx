@@ -41,6 +41,7 @@ function DashboardContent({ currentUser, onLogout }) {
   const [optionUnderlying, setOptionUnderlying] = useState("NIFTY");
   const [selectedOptionContract, setSelectedOptionContract] = useState(null);
   const [showWatchlist, setShowWatchlist] = useState(window.innerWidth <= 768);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [themeMode, setThemeMode] = useState(localStorage.getItem("theme") || "dark");
 
   useEffect(() => {
