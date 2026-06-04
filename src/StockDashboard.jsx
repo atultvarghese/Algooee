@@ -508,8 +508,18 @@ function DashboardContent({ currentUser, onLogout }) {
           />
         ) : activePage === "admin" ? (
           paperLoading && !paperPortfolio ? (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60%", color: theme.text2, fontSize: 14 }}>
-              Loading paper trading account…
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "60%", minHeight: "250px", gap: 16 }}>
+              <div style={{
+                width: 40,
+                height: 40,
+                border: "3px solid rgba(0, 229, 160, 0.15)",
+                borderTop: "3px solid #00e5a0",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite"
+              }} />
+              <div style={{ color: theme.text2, fontSize: 13, letterSpacing: 0.5, fontWeight: 500 }}>
+                Loading paper trading account...
+              </div>
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "24px" }}>
@@ -857,8 +867,18 @@ function DashboardContent({ currentUser, onLogout }) {
             </div>
           )
         ) : loading && !data ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60%", color: theme.text2, fontSize: 14 }}>
-            Loading predictions…
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "60%", minHeight: "250px", gap: 16 }}>
+            <div style={{
+              width: 40,
+              height: 40,
+              border: "3px solid rgba(0, 229, 160, 0.15)",
+              borderTop: "3px solid #00e5a0",
+              borderRadius: "50%",
+              animation: "spin 1s linear infinite"
+            }} />
+            <div style={{ color: theme.text2, fontSize: 13, letterSpacing: 0.5, fontWeight: 500 }}>
+              Loading stock intelligence...
+            </div>
           </div>
         ) : data ? (
           <>
@@ -1237,14 +1257,28 @@ export default function StockDashboard() {
         ::-webkit-scrollbar-track { background: #07101a; }
         ::-webkit-scrollbar-thumb { background: #1a2a3a; border-radius: 2px; }
         @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
       `}</style>
       {authLoading ? (
         <div style={{
           minHeight: "100vh", background: "#060e17", color: "#cde",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontFamily: "'DM Sans', sans-serif"
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          fontFamily: "'DM Sans', sans-serif", gap: 16
         }}>
-          Loading Algooee...
+          <div style={{
+            width: 44,
+            height: 44,
+            border: "3px solid rgba(0, 229, 160, 0.15)",
+            borderTop: "3px solid #00e5a0",
+            borderRadius: "50%",
+            animation: "spin 1s linear infinite"
+          }} />
+          <div style={{ fontSize: 14, letterSpacing: 0.5, fontWeight: 500 }}>
+            Loading Algooee...
+          </div>
         </div>
       ) : !currentUser ? (
         <LoginView API_BASE={API_BASE} onLoginSuccess={(token, user) => {

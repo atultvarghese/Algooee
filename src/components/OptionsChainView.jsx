@@ -326,8 +326,18 @@ export default function OptionsChainView({
           overflowX: "auto"
         }}>
           {loading ? (
-            <div style={{ textAlign: "center", padding: "60px", color: "#556a84", fontSize: 13 }}>
-              Loading Option Chain data...
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "60px", gap: 16 }}>
+              <div style={{
+                width: 36,
+                height: 36,
+                border: "3px solid rgba(0, 229, 160, 0.15)",
+                borderTop: "3px solid #00e5a0",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite"
+              }} />
+              <div style={{ color: "#8899aa", fontSize: 13, letterSpacing: 0.5, fontWeight: 500 }}>
+                Loading Option Chain data...
+              </div>
             </div>
           ) : error ? (
             <div style={{ textAlign: "center", padding: "40px", color: "#fca5a5", fontSize: 12 }}>
