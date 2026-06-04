@@ -3,7 +3,9 @@ from fastapi.testclient import TestClient
 # pyrefly: ignore [missing-import]
 from app.web import app, get_current_user, get_current_admin, PAPER_STORE
 
+# pyrefly: ignore [missing-import]
 import app.web as app_web
+# pyrefly: ignore [missing-import]
 from tests.test_paper_trade import PaperTradeStoreTestHelper
 # Override the store globally to use an in-memory database for testing
 test_store = PaperTradeStoreTestHelper()
