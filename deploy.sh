@@ -56,19 +56,18 @@ pip install -r requirements.txt
 
 # --- 5. Install Node.js v25.6.1 using NVM ---
 echo "[+] Installing Node Version Manager (NVM)..."
-export NVM_DIR="/home/${APP_USER}/.nvm"
-if [ ! -d "$NVM_DIR" ]; then
+if [ ! -f "/home/${APP_USER}/.nvm/nvm.sh" ]; then
   # Run installation script as the app user
   sudo -u "${APP_USER}" -i bash -c 'curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash'
 fi
 
 # Install and alias Node 25.6.1 as default for the user
 echo "[+] Installing Node.js v25.6.1..."
-sudo -u "${APP_USER}" -i bash -c 'export NVM_DIR="$HOME/.nvm"; if [ -s "$NVM_DIR/nvm.sh" ]; then . "$NVM_DIR/nvm.sh" && nvm install 25.6.1 && nvm alias default 25.6.1; else echo "[-] Error: NVM script not found at $NVM_DIR/nvm.sh"; exit 1; fi'
+sudo -u "${APP_USER}" -i bash -c "export NVM_DIR=/home/${APP_USER}/.nvm; if [ -s /home/${APP_USER}/.nvm/nvm.sh ]; then . /home/${APP_USER}/.nvm/nvm.sh && nvm install 25.6.1 && nvm alias default 25.6.1; else echo '[-] Error: NVM script not found at /home/${APP_USER}/.nvm/nvm.sh'; exit 1; fi"
 
 # --- 6. Frontend Setup & Build ---
 echo "[+] Installing frontend dependencies & building production bundle using Node.js v25.6.1..."
-sudo -u "${APP_USER}" -i bash -c 'cd '"${APP_DIR}"'; export NVM_DIR="$HOME/.nvm"; if [ -s "$NVM_DIR/nvm.sh" ]; then . "$NVM_DIR/nvm.sh" && nvm use 25.6.1 && npm install && npm run build; else echo "[-] Error: NVM script not found at $NVM_DIR/nvm.sh"; exit 1; fi'
+sudo -u "${APP_USER}" -i bash -c "cd ${APP_DIR}; export NVM_DIR=/home/${APP_USER}/.nvm; if [ -s /home/${APP_USER}/.nvm/nvm.sh ]; then . /home/${APP_USER}/.nvm/nvm.sh && nvm use 25.6.1 && npm install && npm run build; else echo '[-] Error: NVM script not found at /home/${APP_USER}/.nvm/nvm.sh'; exit 1; fi"
 
 # --- 7. Set Up Environment File ---
 if [ ! -f ".env" ]; then
