@@ -112,10 +112,8 @@ echo "[+] Fetching public IP..."
 PUBLIC_IP=$(curl -s https://api.ipify.org || curl -s https://ifconfig.me || echo "localhost")
 echo "[+] Detected Public IP: ${PUBLIC_IP}"
 
-echo "[+] Creating Nginx site configuration..."
-if [ -f "/etc/letsencrypt/live/algooee.in/fullchain.pem" ]; then
-  echo "[+] SSL certificate found. Configuring Nginx with HTTPS SSL..."
-  cat <<EOF > /etc/nginx/sites-available/algooee
+echo "[+] Creating Nginx site configuration with SSL (HTTPS) enabled by default..."
+cat <<EOF > /etc/nginx/sites-available/algooee
 server {
     listen 80;
     server_name algooee.in www.algooee.in ${PUBLIC_IP};
@@ -141,23 +139,6 @@ server {
     }
 }
 EOF
-else
-  echo "[+] SSL certificate not found. Configuring Nginx with HTTP only..."
-  cat <<EOF > /etc/nginx/sites-available/algooee
-server {
-    listen 80;
-    server_name algooee.in www.algooee.in ${PUBLIC_IP};
-
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-}
-EOF
-fi
 
 # Link Nginx site and test config
 if [ -f /etc/nginx/sites-enabled/default ]; then
@@ -172,59 +153,18 @@ nginx -t
 systemctl restart nginx
 
 # --- 10. SSL Certificate (Let's Encrypt) Setup ---
-echo "[+] Checking DNS configuration for algooee.in and www.algooee.in..."
-# Resolve domain IPs using Google DNS API
-DOMAIN_IP=$(curl -s --max-time 5 "https://dns.google/resolve?name=algooee.in" | grep -oE '"data":"[0-9.]+"' | cut -d'"' -f4 | head -n1 || echo "")
-WWW_IP=$(curl -s --max-time 5 "https://dns.google/resolve?name=www.algooee.in" | grep -oE '"data":"[0-9.]+"' | cut -d'"' -f4 | head -n1 || echo "")
-
-CERT_DOMAINS=""
-if [ "$DOMAIN_IP" = "$PUBLIC_IP" ]; then
-  CERT_DOMAINS="-d algooee.in"
-fi
-if [ "$WWW_IP" = "$PUBLIC_IP" ]; then
-  if [ -n "$CERT_DOMAINS" ]; then
-    CERT_DOMAINS="$CERT_DOMAINS -d www.algooee.in"
-  else
-    CERT_DOMAINS="-d www.algooee.in"
-  fi
-fi
-
-# Check if current certificate covers www.algooee.in
-COVERS_WWW=false
-if [ -f "/etc/letsencrypt/live/algooee.in/fullchain.pem" ]; then
-  if openssl x509 -text -noout -in /etc/letsencrypt/live/algooee.in/fullchain.pem | grep -q "DNS:www.algooee.in"; then
-    COVERS_WWW=true
-  fi
-fi
-
-NEED_SSL=false
 if [ ! -f "/etc/letsencrypt/live/algooee.in/fullchain.pem" ]; then
-  NEED_SSL=true
-elif [ "$WWW_IP" = "$PUBLIC_IP" ] && [ "$COVERS_WWW" = "false" ]; then
-  echo "[+] DNS for www.algooee.in has propagated, but current SSL certificate does not cover it."
-  echo "[+] We will request an expanded certificate."
-  NEED_SSL=true
-fi
-
-if [ "$NEED_SSL" = "true" ]; then
-  if [ -n "$CERT_DOMAINS" ]; then
-    echo "[+] DNS points to this server for: $CERT_DOMAINS. Installing/Updating SSL..."
-    apt-get install -y certbot python3-certbot-nginx
-    read -p "Enter your email for Let's Encrypt SSL alerts (e.g. admin@algooee.in): " SSL_EMAIL
-    if [ -n "$SSL_EMAIL" ]; then
-      certbot --nginx $CERT_DOMAINS --non-interactive --agree-tos --email "$SSL_EMAIL" --redirect --expand
-      echo "[+] SSL certificate successfully configured!"
-    else
-      echo "[!] No email provided. Skipping SSL setup."
-    fi
+  echo "[+] Installing and configuring SSL/HTTPS..."
+  apt-get install -y certbot python3-certbot-nginx
+  read -p "Enter your email for Let's Encrypt SSL alerts (e.g. admin@algooee.in): " SSL_EMAIL
+  if [ -n "$SSL_EMAIL" ]; then
+    certbot --nginx -d algooee.in -d www.algooee.in --non-interactive --agree-tos --email "$SSL_EMAIL" --redirect
+    echo "[+] SSL certificate successfully configured!"
   else
-    echo "[!] Warning: Neither 'algooee.in' nor 'www.algooee.in' point to this server's IP ($PUBLIC_IP) yet."
-    echo "    (Current DNS IPs: algooee.in=${DOMAIN_IP:-None}, www.algooee.in=${WWW_IP:-None})"
-    echo "    Once you point your domain to $PUBLIC_IP in your DNS registrar, run this script again"
-    echo "    to configure SSL/HTTPS automatically."
+    echo "[!] No email provided. Skipping SSL setup."
   fi
 else
-  echo "[+] SSL Certificate is already installed, active, and fully covers your active domains."
+  echo "[+] SSL Certificate is already installed, active, and configured."
 fi
 
 # --- 11. Summary & Domain Info ---
