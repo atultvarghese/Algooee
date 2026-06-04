@@ -28,6 +28,8 @@ export default function useStocks() {
   const [stockBusy, setStockBusy] = useState(false);
   const [stockNotice, setStockNotice] = useState("");
   const [stockError, setStockError] = useState("");
+  const [predictLoading, setPredictLoading] = useState(false);
+  const [predictError, setPredictError] = useState("");
 
   function formatLocalDate(d) {
     const y = d.getFullYear();
@@ -225,23 +227,72 @@ export default function useStocks() {
         })
         .sort((a, b) => a.ts - b.ts);
 
-      let predJson = {};
-      try {
-        const predResp = await authFetch(`${API_BASE}/api/predict`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isin, start_date: formatLocalDate(start), end_date: formatLocalDate(end), interval: "day", count: 1, forecast_days: 1, backtest_days: 30 }),
-        });
-        if (predResp.ok) predJson = await predResp.json();
-      } catch (predErr) { console.warn(`Predict fetch error for ${ticker}:`, predErr); }
+      const dailyLastPrice = history.length ? history[history.length - 1].price : NaN;
+      const lastPrice = Number.isFinite(currentPrice) ? currentPrice : Number.isFinite(dailyLastPrice) ? dailyLastPrice : 0;
+
+      const dataObj = {
+        ticker: isin,
+        name: histJson.isin || isin,
+        history,
+        lastPrice: +lastPrice,
+        change: history.length ? +(lastPrice - history[0].price).toFixed(2) : 0,
+        changePct: history.length ? +(((lastPrice - history[0].price) / history[0].price) * 100).toFixed(2) : 0,
+        hasPrediction: false,
+        backtest: [],
+        backtestSummary: {},
+        diagnostics: {},
+        predicted: [],
+        confidence: 0,
+        confidenceLabel: "none",
+        mae: null,
+        mape: null,
+        rmse: null,
+        bias: null,
+        p10: null,
+        p90: null,
+        errorRatioPct: null,
+        expectedMovePct: null,
+        riskScore: 0,
+        trend: 'Neutral',
+        trendStrength: 0,
+        indicators: { rsi: 0, macd: 0, ema20: 0, ema50: 0, volume: 0 }
+      };
+      setStockData(d => ({ ...d, [ticker]: dataObj }));
+    } catch (e) {
+      console.error('Backend fetch failed, using zero-value fallback:', e);
+      setStockData(d => ({ ...d, [ticker]: buildEmptyStockData(ticker) }));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadPrediction(ticker) {
+    if (!ticker) return;
+    setPredictLoading(true);
+    setPredictError("");
+    try {
+      const isin = ticker;
+      const end = new Date();
+      const start = new Date();
+      start.setDate(end.getDate() - 730);
+
+      const predResp = await authFetch(`${API_BASE}/api/predict`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isin, start_date: formatLocalDate(start), end_date: formatLocalDate(end), interval: "day", count: 1, forecast_days: 1, backtest_days: 30 }),
+      });
+      if (!predResp.ok) throw new Error(`Prediction fetch failed: ${predResp.status}`);
+      const predJson = await predResp.json();
 
       const predictionContainer = predJson?.predicted_high && typeof predJson.predicted_high === "object" ? predJson.predicted_high : predJson;
       const predictedHigh = Number(predictionContainer?.predicted_high ?? predJson?.predicted_high);
       const intervalLow = Number(predictionContainer?.p10 ?? predJson?.p10);
       const intervalHigh = Number(predictionContainer?.p90 ?? predJson?.p90);
-      const dailyLastPrice = history.length ? history[history.length - 1].price : NaN;
+      const existingData = stockData[ticker] || {};
+      const dailyLastPrice = existingData.history?.length ? existingData.history[existingData.history.length - 1].price : NaN;
+      const currentPrice = existingData.lastPrice || dailyLastPrice;
       const lastPrice = Number.isFinite(currentPrice) ? currentPrice : Number.isFinite(dailyLastPrice) ? dailyLastPrice : Number.isFinite(predictedHigh) ? predictedHigh : 0;
-      const baseTs = history.length ? history[history.length - 1].ts : Date.now();
+      const baseTs = existingData.history?.length ? existingData.history[existingData.history.length - 1].ts : Date.now();
 
       const futureForecast = (predJson.future_forecast || [])
         .map((point, idx) => {
@@ -316,44 +367,46 @@ export default function useStocks() {
       const diagnostics = predJson.diagnostics || {};
       const expectedMovePct = Number(predJson.expectedMovePct);
 
-      const dataObj = {
-        ticker: isin,
-        name: histJson.isin || isin,
-        history,
-        backtest,
-        backtestSummary,
-        diagnostics,
-        predicted,
-        lastPrice: +lastPrice,
-        change: history.length ? +(lastPrice - history[0].price).toFixed(2) : 0,
-        changePct: history.length ? +(((lastPrice - history[0].price) / history[0].price) * 100).toFixed(2) : 0,
-        confidence: +confidence.toFixed(2),
-        confidenceLabel: predJson.confidence_label || (confidence >= 75 ? "high" : confidence >= 55 ? "moderate" : "low"),
-        mae: Number.isFinite(maeValue) ? +maeValue.toFixed(4) : null,
-        mape: Number.isFinite(mapeValue) ? +mapeValue.toFixed(4) : null,
-        rmse: Number.isFinite(rmseValue) ? +rmseValue.toFixed(4) : null,
-        bias: Number.isFinite(biasValue) ? +biasValue.toFixed(4) : null,
-        p10: Number.isFinite(p10Value) ? +p10Value.toFixed(2) : null,
-        p90: Number.isFinite(p90Value) ? +p90Value.toFixed(2) : null,
-        errorRatioPct: Number.isFinite(errorRatioPct) ? +errorRatioPct.toFixed(4) : null,
-        expectedMovePct: Number.isFinite(expectedMovePct) ? +expectedMovePct.toFixed(2) : null,
-        riskScore: Number.isFinite(+predJson.riskScore) ? +predJson.riskScore : 0,
-        trend: predJson.trend || 'Neutral',
-        trendStrength: Number.isFinite(+predJson.trendStrength) ? +predJson.trendStrength : 0,
-        indicators: {
-          rsi: Number.isFinite(+predJson.rsi) ? +predJson.rsi : 0,
-          macd: Number.isFinite(+predJson.macd) ? +predJson.macd : 0,
-          ema20: Number.isFinite(+predJson.ema20) ? +predJson.ema20 : 0,
-          ema50: Number.isFinite(+predJson.ema50) ? +predJson.ema50 : 0,
-          volume: predJson.volume ?? 0
-        }
-      };
-      setStockData(d => ({ ...d, [ticker]: dataObj }));
-    } catch (e) {
-      console.error('Backend fetch failed, using zero-value fallback:', e);
-      setStockData(d => ({ ...d, [ticker]: buildEmptyStockData(ticker) }));
+      setStockData(prev => {
+        const prevObj = prev[ticker] || {};
+        return {
+          ...prev,
+          [ticker]: {
+            ...prevObj,
+            hasPrediction: true,
+            backtest,
+            backtestSummary,
+            diagnostics,
+            predicted,
+            lastPrice: +lastPrice,
+            confidence: +confidence.toFixed(2),
+            confidenceLabel: predJson.confidence_label || (confidence >= 75 ? "high" : confidence >= 55 ? "moderate" : "low"),
+            mae: Number.isFinite(maeValue) ? +maeValue.toFixed(4) : null,
+            mape: Number.isFinite(mapeValue) ? +mapeValue.toFixed(4) : null,
+            rmse: Number.isFinite(rmseValue) ? +rmseValue.toFixed(4) : null,
+            bias: Number.isFinite(biasValue) ? +biasValue.toFixed(4) : null,
+            p10: Number.isFinite(p10Value) ? +p10Value.toFixed(2) : null,
+            p90: Number.isFinite(p90Value) ? +p90Value.toFixed(2) : null,
+            errorRatioPct: Number.isFinite(errorRatioPct) ? +errorRatioPct.toFixed(4) : null,
+            expectedMovePct: Number.isFinite(expectedMovePct) ? +expectedMovePct.toFixed(2) : null,
+            riskScore: Number.isFinite(+predJson.riskScore) ? +predJson.riskScore : 0,
+            trend: predJson.trend || 'Neutral',
+            trendStrength: Number.isFinite(+predJson.trendStrength) ? +predJson.trendStrength : 0,
+            indicators: {
+              rsi: Number.isFinite(+predJson.rsi) ? +predJson.rsi : 0,
+              macd: Number.isFinite(+predJson.macd) ? +predJson.macd : 0,
+              ema20: Number.isFinite(+predJson.ema20) ? +predJson.ema20 : 0,
+              ema50: Number.isFinite(+predJson.ema50) ? +predJson.ema50 : 0,
+              volume: predJson.volume ?? 0
+            }
+          }
+        };
+      });
+    } catch (err) {
+      console.error("Error loading prediction:", err);
+      setPredictError(err.message || "Failed to load prediction.");
     } finally {
-      setLoading(false);
+      setPredictLoading(false);
     }
   }
 
@@ -401,6 +454,7 @@ export default function useStocks() {
   return {
     stocks, selected, setSelected, stockData, loading, remoteStocks,
     stockBusy, stockError, stockNotice, setStockError, setStockNotice,
-    fetchWatchlistStocks, addWatchlistStock, removeWatchlistStock
+    fetchWatchlistStocks, addWatchlistStock, removeWatchlistStock,
+    loadPrediction, predictLoading, predictError
   };
 }

@@ -191,7 +191,19 @@ export default function UserManagementView({ API_BASE, currentUser }) {
       }}>
         <div style={{ overflowX: "auto" }}>
           {loading && users.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "40px", color: "#556a84" }}>Loading users...</div>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px", gap: 16 }}>
+              <div style={{
+                width: 36,
+                height: 36,
+                border: "3px solid rgba(0, 229, 160, 0.15)",
+                borderTop: "3px solid #00e5a0",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite"
+              }} />
+              <div style={{ color: "#8899aa", fontSize: 13, letterSpacing: 0.5, fontWeight: 500 }}>
+                Loading users...
+              </div>
+            </div>
           ) : users.length > 0 ? (
             <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13px" }}>
               <thead>
