@@ -105,7 +105,7 @@ chown -R "${APP_USER}:${APP_USER}" "${APP_DIR}"
 
 echo "[+] Starting and enabling algooee service..."
 systemctl daemon-reload
-systemctl start algooee
+systemctl restart algooee
 systemctl enable algooee
 
 # --- 9. Configure Nginx Reverse Proxy ---
