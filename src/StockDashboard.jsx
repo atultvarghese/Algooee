@@ -3,7 +3,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 // Hooks & Utils
 import useStocks from "./hooks/useStocks";
-import usePaperTrade from "./hooks/usePaperTrade";
+import usePaperTrade from "./hooks/usePapertrade";
 import { formatINR, formatPercent, formatDateLabel, formatExactDateTime, formatPreciseRelativeTime } from "./utils/formatters";
 import { API_BASE } from "./utils/constants";
 
