@@ -96,6 +96,7 @@ function DashboardContent({ currentUser, onLogout }) {
   const [tradePrice, setTradePrice] = useState("");
   const [fundAmount, setFundAmount] = useState("");
   const [stockSearch, setStockSearch] = useState("");
+  const [adminMobileTab, setAdminMobileTab] = useState("holdings");
 
   // Upstox Live Search UI States
   const [liveQuery, setLiveQuery] = useState("");
@@ -575,333 +576,753 @@ function DashboardContent({ currentUser, onLogout }) {
               )}
 
               {/* Main Grid: Left for portfolio holdings, Right for actions & logs */}
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "2.1fr 1fr", gap: "24px", alignItems: "start" }}>
-
-                {/* Left Side: Metrics & Positions */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-
-                  {/* Metric Cards */}
-                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 12 }}>
+              {isMobile ? (
+                // Mobile tabbed view
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  {/* Mobile Tab Buttons */}
+                  <div style={{
+                    display: "flex",
+                    background: themeMode === "light" ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: 12,
+                    padding: 4,
+                    marginBottom: 8
+                  }}>
                     {[
-                      { label: "Cash Balance", value: formatINR(paper.cash_balance), color: "#00e5a0", desc: "Available for trading" },
-                      { label: "Total Invested", value: formatINR(paper.invested_cost), color: "#9fe7ff", desc: "Capital in holdings" },
-                      { label: "Market Value", value: formatINR(paper.market_value), color: "#4a9eff", desc: "Current holdings value" },
-                      { label: "Total Profit / Loss", value: formatINR(paper.total_pnl), color: (paper.total_pnl ?? 0) >= 0 ? "#00e5a0" : "#ef4444", desc: "Unrealized P/L of open positions" },
-                    ].map((item) => (
-                      <div key={item.label} style={{
-                        ...glassCard,
-                        borderRadius: 16,
-                        padding: "16px"
-                      }}>
-                        <div style={{ fontSize: 10, color: "#556a84", letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 6 }}>{item.label}</div>
-                        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: item.color, marginBottom: 4 }}>{item.value}</div>
-                        <div style={{ fontSize: 10, color: "#3a4e68" }}>{item.desc}</div>
-                      </div>
+                      { id: "holdings", label: "Holdings" },
+                      { id: "trades", label: "Activity Log" },
+                      { id: "controls", label: "Admin Tools" }
+                    ].map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setAdminMobileTab(tab.id)}
+                        style={{
+                          flex: 1,
+                          background: adminMobileTab === tab.id ? (themeMode === "light" ? "#ffffff" : "rgba(255,255,255,0.08)") : "transparent",
+                          color: adminMobileTab === tab.id ? theme.text : theme.text2,
+                          border: "none",
+                          borderRadius: 8,
+                          padding: "10px 12px",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          boxShadow: adminMobileTab === tab.id && themeMode === "light" ? "0 2px 8px rgba(0,0,0,0.08)" : "none"
+                        }}
+                      >
+                        {tab.label}
+                      </button>
                     ))}
                   </div>
 
-                  {/* Open Positions Card */}
-                  <div style={{
-                    ...glassCard,
-                    borderRadius: 16,
-                    padding: "20px",
-                    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
-                  }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                      <div style={{ fontSize: 12, color: "#9bb0c4", letterSpacing: 1, fontWeight: 700 }}>PORTFOLIO HOLDINGS</div>
-                      <div style={{ fontSize: 10, color: "#556a84" }}>{(paper.positions || []).length} active assets</div>
-                    </div>
-
-                    {(paper.positions || []).length ? (
-                      <div style={{ overflowX: "auto" }}>
-                        <div style={{ overflow: "hidden", minWidth: isMobile ? "750px" : "auto" }}>
-                        <div style={{
-                          display: "grid",
-                          gridTemplateColumns: "1.3fr 1.1fr 1.0fr 0.9fr 1.0fr 1.2fr 0.9fr",
-                          background: "#0c1827", color: "#556a84",
-                          fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase"
-                        }}>
-                          <div style={{ padding: "12px 14px" }}>Asset</div>
-                          <div style={{ padding: "12px 14px" }}>Amt Purchased</div>
-                          <div style={{ padding: "12px 14px" }}>Avg Cost</div>
-                          <div style={{ padding: "12px 14px" }}>Current</div>
-                          <div style={{ padding: "12px 14px" }}>Unrealized P/L</div>
-                          <div style={{ padding: "12px 14px" }}>Purchase Date & Recency</div>
-                          <div style={{ padding: "12px 14px", textAlign: "center" }}>Action</div>
+                  {/* Tab Contents */}
+                  {adminMobileTab === "holdings" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                      {/* Account Summary Card */}
+                      <div style={{
+                        ...glassCard,
+                        borderRadius: 16,
+                        padding: "20px",
+                        background: themeMode === "light" ? "linear-gradient(135deg, #ffffff 0%, #f9fafb 100%)" : "linear-gradient(135deg, #0e1e2f 0%, #060e17 100%)",
+                        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.2)"
+                      }}>
+                        <div style={{ fontSize: 10, color: theme.text2, letterSpacing: 1, fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>
+                          Account Net Worth
                         </div>
-                        {(paper.positions || []).map((pos) => (
-                          <div key={pos.id || pos.isin} style={{
-                            display: "grid",
-                            gridTemplateColumns: "1.3fr 1.1fr 1.0fr 0.9fr 1.0fr 1.2fr 0.9fr",
-                            borderTop: "1px solid #142234", fontSize: 12,
-                            background: theme.card, color: "#cde",
-                            alignItems: "center"
-                          }}>
-                            <div style={{ padding: "12px 14px" }}>
-                              <div style={{ fontWeight: 600, color: theme.text }}>{pos.name}</div>
-                              <div style={{ fontSize: 9, color: "#556a84", marginTop: 2, display: "flex", flexDirection: "column", gap: 2 }}>
-                                {pos.is_option && pos.expiry ? (
-                                  <>
-                                    <span style={{ color: theme.text2 }}>Expiry: <span style={{ color: "#cde" }}>{pos.expiry}</span></span>
-                                    <span style={{ color: "#ffb077", fontWeight: 500 }}>({getDaysRemaining(pos.expiry)})</span>
-                                  </>
-                                ) : (
-                                  pos.isin
-                                )}
-                              </div>
+                        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 24, fontWeight: 700, color: theme.text, marginBottom: 16 }}>
+                          {formatINR(paper.cash_balance + paper.market_value)}
+                        </div>
+
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 12px", borderTop: `1px solid ${theme.border}`, paddingTop: 16 }}>
+                          <div>
+                            <div style={{ fontSize: 9, color: theme.text2, textTransform: "uppercase", marginBottom: 2 }}>Cash Balance</div>
+                            <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, color: "#00e5a0" }}>
+                              {formatINR(paper.cash_balance)}
                             </div>
-                            <div style={{ padding: "12px 14px", fontFamily: "'Space Mono', monospace", color: "#9bb0c4" }}>
-                              {formatINR(pos.cost_value)}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 9, color: theme.text2, textTransform: "uppercase", marginBottom: 2 }}>Total Invested</div>
+                            <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, color: "#9fe7ff" }}>
+                              {formatINR(paper.invested_cost)}
                             </div>
-                            <div style={{ padding: "12px 14px", fontFamily: "'Space Mono', monospace", color: "#9bb0c4" }}>
-                              {formatINR(pos.avg_price)}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 9, color: theme.text2, textTransform: "uppercase", marginBottom: 2 }}>Market Value</div>
+                            <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, color: "#4a9eff" }}>
+                              {formatINR(paper.market_value)}
                             </div>
-                            <div style={{ padding: "12px 14px", fontFamily: "'Space Mono', monospace", color: theme.text }}>
-                              {formatINR(pos.current_price)}
-                            </div>
-                            <div style={{
-                              padding: "12px 14px",
-                              fontFamily: "'Space Mono', monospace",
-                              color: (pos.unrealized_pnl ?? 0) >= 0 ? "#00e5a0" : "#ef4444",
-                              fontWeight: 600
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 9, color: theme.text2, textTransform: "uppercase", marginBottom: 2 }}>Total P&L</div>
+                            <div style={{ 
+                              fontFamily: "'Space Mono', monospace", 
+                              fontSize: 13, 
+                              fontWeight: 700, 
+                              color: (paper.total_pnl ?? 0) >= 0 ? "#00e5a0" : "#ef4444" 
                             }}>
-                              {formatINR(pos.unrealized_pnl)}
-                            </div>
-                            <div style={{ padding: "12px 14px", color: "#9bb0c4" }}>
-                              <div style={{ color: theme.text, fontFamily: "'Space Mono', monospace" }}>{formatExactDateTime(pos.updated_at)}</div>
-                              <div style={{ fontSize: 10, color: "#00e5a0", marginTop: 2 }}>{formatPreciseRelativeTime(pos.updated_at)}</div>
-                            </div>
-                            <div style={{ padding: "8px 6px", display: "flex", gap: "4px", justifyContent: "center" }}>
-                              <button
-                                onClick={() => {
-                                  if (pos.is_option) {
-                                    const underlying = pos.name.split(" ")[0];
-                                    setOptionUnderlying(underlying);
-                                    setSelectedOptionContract({
-                                      key: pos.isin,
-                                      symbol: pos.name,
-                                      underlying: underlying,
-                                      expiry: pos.expiry,
-                                      side: "buy",
-                                      type: pos.name.split(" ")[2],
-                                      strike: parseFloat(pos.name.split(" ")[1]),
-                                      ltp: pos.current_price
-                                    });
-                                    setActivePage("options");
-                                  } else {
-                                     setSelected(pos.isin);
-                                     setActivePage("stock");
-                                     setShowWatchlist(false);
-                                   }
-                                }}
-                                disabled={paperBusy}
-                                style={{
-                                  background: "#0f2a24",
-                                  color: "#4ade80",
-                                  border: "1px solid #4ade8055",
-                                  borderRadius: 6,
-                                  padding: "6px 8px",
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  cursor: paperBusy ? "not-allowed" : "pointer",
-                                  opacity: paperBusy ? 0.5 : 1,
-                                  transition: "all 0.2s ease"
-                                }}
-                                onMouseEnter={(e) => {
-                                  if (!paperBusy) {
-                                    e.currentTarget.style.background = "#10b981";
-                                    e.currentTarget.style.color = "#fff";
-                                  }
-                                }}
-                                onMouseLeave={(e) => {
-                                  if (!paperBusy) {
-                                    e.currentTarget.style.background = "#0f2a24";
-                                    e.currentTarget.style.color = "#4ade80";
-                                  }
-                                }}
-                              >
-                                BUY
-                              </button>
-                              <button
-                                onClick={() => {
-                                  const executionPrice = pos.current_price;
-                                  const amount = pos.quantity * executionPrice;
-                                  placePaperOrder(
-                                    "sell",
-                                    pos.isin,
-                                    amount,
-                                    executionPrice,
-                                    pos.is_option ? pos.name : null,
-                                    pos.is_option ? pos.expiry : null
-                                  );
-                                }}
-                                disabled={paperBusy}
-                                style={{
-                                  background: "#2a1218",
-                                  color: "#f87171",
-                                  border: "1px solid #f8717155",
-                                  borderRadius: 6,
-                                  padding: "6px 8px",
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  cursor: paperBusy ? "not-allowed" : "pointer",
-                                  opacity: paperBusy ? 0.5 : 1,
-                                  transition: "all 0.2s ease"
-                                }}
-                                onMouseEnter={(e) => {
-                                  if (!paperBusy) {
-                                    e.currentTarget.style.background = "#ef4444";
-                                    e.currentTarget.style.color = "#fff";
-                                  }
-                                }}
-                                onMouseLeave={(e) => {
-                                  if (!paperBusy) {
-                                    e.currentTarget.style.background = "#2a1218";
-                                    e.currentTarget.style.color = "#f87171";
-                                  }
-                                }}
-                              >
-                                SELL
-                              </button>
+                              {(paper.total_pnl ?? 0) >= 0 ? "▲" : "▼"} {formatINR(Math.abs(paper.total_pnl))}
+                              <span style={{ fontSize: 10, marginLeft: 4, fontWeight: 500 }}>
+                                ({paper.invested_cost > 0 ? (((paper.total_pnl ?? 0) / paper.invested_cost) * 100).toFixed(2) : "0.00"}%)
+                              </span>
                             </div>
                           </div>
-                        ))}
                         </div>
                       </div>
-                    ) : (
-                      <div style={{
-                        textAlign: "center", padding: "40px 20px",
-                        border: "1px dashed #142234", borderRadius: 8,
-                        color: "#556a84", fontSize: 12
-                      }}>
-                        No open holdings in your paper portfolio yet. Go to Stock Page to Buy stocks.
-                      </div>
-                    )}
-                  </div>
-                </div>
 
-                {/* Right Side: Admin Tools & Transaction Log */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-
-                  {/* Admin Funding / Reset Control */}
-                  <div style={{
-                    ...glassCard,
-                    borderRadius: 16,
-                    padding: "20px"
-                  }}>
-                    <div style={{ fontSize: 12, color: "#9bb0c4", letterSpacing: 1, fontWeight: 700, marginBottom: 14 }}>ADMIN CONTROLS</div>
-
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      {/* Open Positions list */}
                       <div>
-                        <label style={{ display: "block", fontSize: 10, color: "#556a84", marginBottom: 6, fontWeight: 600 }}>ADD FUNDS (INR)</label>
-                        <input
-                          type="number" min="0" step="0.01" value={fundAmount} onChange={(e) => setFundAmount(e.target.value)}
-                          placeholder="Amount in INR (e.g. 50000)"
-                          style={{
-                            width: "100%", background: "#050b12", border: "1px solid #142234",
-                            color: "#cde", borderRadius: 8, padding: "10px 12px",
-                            fontSize: 12, outline: "none"
-                          }}
-                        />
-                      </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                          <div style={{ fontSize: 11, color: theme.text2, letterSpacing: 1, fontWeight: 700 }}>PORTFOLIO HOLDINGS</div>
+                          <div style={{ fontSize: 10, color: theme.text3 }}>{(paper.positions || []).length} active positions</div>
+                        </div>
 
-                      <button
-                        onClick={handleAddFunds} disabled={paperBusy}
-                        style={{
-                          width: "100%", background: "#00e5a022", color: "#00e5a0",
-                          border: "1px solid #00e5a055", borderRadius: 8,
-                          padding: "10px 14px", fontSize: 12, fontWeight: 700,
-                          cursor: paperBusy ? "not-allowed" : "pointer", opacity: paperBusy ? 0.6 : 1
-                        }}
-                      >
-                        {paperBusy ? "PROCESSING..." : "DEPOSIT FUNDS"}
-                      </button>
+                        {(paper.positions || []).length ? (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                            {(paper.positions || []).map((pos) => {
+                              const isProfit = (pos.unrealized_pnl ?? 0) >= 0;
+                              const isDayProfit = (pos.day_pnl ?? 0) >= 0;
+                              const pnlPct = pos.cost_value > 0 ? ((pos.unrealized_pnl ?? 0) / pos.cost_value) * 100 : 0;
+                              const dayPnlPct = pos.prev_close > 0 ? ((pos.current_price - pos.prev_close) / pos.prev_close) * 100 : 0;
 
-                      <div style={{ borderTop: "1px solid #142234", margin: "8px 0" }} />
-
-                      <button
-                        onClick={resetPaperAccount} disabled={paperBusy}
-                        style={{
-                          width: "100%", background: "#ef444415", color: "#fca5a5",
-                          border: "1px solid #ef444455", borderRadius: 8,
-                          padding: "10px 14px", fontSize: 12, fontWeight: 700,
-                          cursor: paperBusy ? "not-allowed" : "pointer", opacity: paperBusy ? 0.6 : 1
-                        }}
-                      >
-                        RESET ACCOUNT (0 CASH)
-                      </button>
-                    </div>
-
-                    <div style={{ marginTop: 14, fontSize: 10, color: "#556a84", lineHeight: "1.4" }}>
-                      Total funded so far: <span style={{ color: theme.text, fontFamily: "'Space Mono', monospace" }}>{formatINR(paper.total_funded)}</span><br />
-                      P/L vs funded: <span style={{ color: (paper.pnl_vs_funded ?? 0) >= 0 ? "#00e5a0" : "#ef4444", fontFamily: "'Space Mono', monospace", fontWeight: 600 }}>{formatINR(paper.pnl_vs_funded)}</span>
-                    </div>
-                  </div>
-
-                  {/* Unified Activity Log (Cleaned up trades / ledger) */}
-                  <div style={{
-                    ...glassCard,
-                    borderRadius: 16,
-                    padding: "20px"
-                  }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                      <div style={{ fontSize: 12, color: "#9bb0c4", letterSpacing: 1, fontWeight: 700 }}>RECENT TRANSACTION LOG</div>
-                      <span style={{ fontSize: 9, color: "#556a84" }}>Last 8 trades</span>
-                    </div>
-
-                    {(paper.trades || []).length ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                        {(paper.trades || []).slice(0, 8).map((trade) => (
-                          <div key={trade.id} style={{
-                            borderBottom: "1px solid #0e1a29", paddingBottom: 8,
-                            display: "grid", gridTemplateColumns: "1fr auto", gap: "4px"
-                          }}>
-                            <div>
-                              <div style={{ fontSize: 11, fontWeight: 600, color: theme.text }}>
-                                <span style={{
-                                  color: trade.side === "buy" ? "#00e5a0" : "#ef4444",
-                                  marginRight: 6, textTransform: "uppercase", fontSize: 9, fontWeight: 800,
-                                  background: trade.side === "buy" ? "#00e5a015" : "#ef444415",
-                                  padding: "2px 6px", borderRadius: 4
-                                }}>
-                                  {trade.side}
-                                </span>
-                                {trade.name || trade.isin}
-                              </div>
-                              <div style={{ fontSize: 9, color: "#556a84", marginTop: 4 }}>
-                                {trade.is_option && trade.expiry ? (
-                                  <div style={{ marginBottom: 4 }}>
-                                    <span style={{ color: theme.text2 }}>Expiry: <span style={{ color: "#cde" }}>{trade.expiry}</span></span>
-                                    <span style={{ color: "#ffb077", marginLeft: 4 }}>({getDaysRemaining(trade.expiry)})</span>
+                              return (
+                                <div
+                                  key={pos.id || pos.isin}
+                                  style={{
+                                    background: themeMode === "light" ? "rgba(255,255,255,0.45)" : theme.card2,
+                                    border: `1px solid ${theme.border}`,
+                                    borderRadius: 14,
+                                    padding: 16,
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: 12,
+                                    boxShadow: "0 2px 8px rgba(0,0,0,0.12)"
+                                  }}
+                                >
+                                  {/* Header */}
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                                    <div>
+                                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                        <span style={{ fontWeight: 700, fontSize: 13, color: theme.text }}>{pos.name}</span>
+                                        <span style={{
+                                          fontSize: 8,
+                                          background: pos.is_option ? "rgba(255,176,119,0.1)" : "rgba(0,229,160,0.1)",
+                                          padding: "2px 6px",
+                                          borderRadius: 4,
+                                          color: pos.is_option ? "#ffb077" : "#00e5a0",
+                                          fontWeight: 700,
+                                          textTransform: "uppercase"
+                                        }}>
+                                          {pos.is_option ? "Option" : "Equity"}
+                                        </span>
+                                      </div>
+                                      <div style={{ fontSize: 9, color: theme.text3, marginTop: 4 }}>{pos.isin}</div>
+                                    </div>
+                                    <div style={{ textAlign: "right" }}>
+                                      <div style={{
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        color: isProfit ? "#00e5a0" : "#ef4444",
+                                        fontFamily: "'Space Mono', monospace"
+                                      }}>
+                                        {isProfit ? "▲" : "▼"} {formatINR(Math.abs(pos.unrealized_pnl))}
+                                      </div>
+                                      <div style={{
+                                        fontSize: 9,
+                                        fontWeight: 600,
+                                        color: isProfit ? "#00e5a0" : "#ef4444",
+                                        marginTop: 2
+                                      }}>
+                                        {isProfit ? "+" : ""}{pnlPct.toFixed(2)}%
+                                      </div>
+                                    </div>
                                   </div>
-                                ) : null}
-                                {formatExactDateTime(trade.created_at)} ({formatPreciseRelativeTime(trade.created_at)})
-                              </div>
-                            </div>
-                            <div style={{ textAlign: "right" }}>
-                              <div style={{ fontSize: 11, fontWeight: 600, color: "#cde", fontFamily: "'Space Mono', monospace" }}>
-                                {formatINR(trade.gross_value)}
-                              </div>
-                              <div style={{ fontSize: 9, color: "#556a84", marginTop: 4 }}>
-                                {roundQty(trade.quantity)} qty @ {formatINR(trade.price)}
-                              </div>
-                            </div>
+
+                                  {/* Expiry Badge if Option */}
+                                  {pos.is_option && pos.expiry && (
+                                    <div style={{
+                                      background: themeMode === "light" ? "rgba(0,0,0,0.02)" : "rgba(255,255,255,0.02)",
+                                      borderRadius: 6,
+                                      padding: "6px 10px",
+                                      fontSize: 10,
+                                      color: "#ffb077",
+                                      display: "flex",
+                                      justifyContent: "space-between",
+                                      alignItems: "center"
+                                    }}>
+                                      <span>Expiry Contract</span>
+                                      <span style={{ fontWeight: 600 }}>{pos.expiry} ({getDaysRemaining(pos.expiry)})</span>
+                                    </div>
+                                  )}
+
+                                  {/* Metrics Grid */}
+                                  <div style={{
+                                    display: "grid",
+                                    gridTemplateColumns: "repeat(3, 1fr)",
+                                    gap: "10px 8px",
+                                    borderTop: `1px solid ${theme.border}`,
+                                    borderBottom: `1px solid ${theme.border}`,
+                                    padding: "10px 0"
+                                  }}>
+                                    <div>
+                                      <div style={{ fontSize: 9, color: theme.text2, marginBottom: 2 }}>Qty</div>
+                                      <div style={{ fontSize: 11, fontWeight: 700, color: theme.text, fontFamily: "'Space Mono', monospace" }}>{pos.quantity}</div>
+                                    </div>
+                                    <div>
+                                      <div style={{ fontSize: 9, color: theme.text2, marginBottom: 2 }}>Avg Cost</div>
+                                      <div style={{ fontSize: 11, fontWeight: 700, color: theme.text, fontFamily: "'Space Mono', monospace" }}>{formatINR(pos.avg_price)}</div>
+                                    </div>
+                                    <div>
+                                      <div style={{ fontSize: 9, color: theme.text2, marginBottom: 2 }}>LTP</div>
+                                      <div style={{ fontSize: 11, fontWeight: 700, color: theme.text, fontFamily: "'Space Mono', monospace" }}>{formatINR(pos.current_price)}</div>
+                                    </div>
+                                    <div>
+                                      <div style={{ fontSize: 9, color: theme.text2, marginBottom: 2 }}>Amt Invested</div>
+                                      <div style={{ fontSize: 11, fontWeight: 600, color: theme.text2, fontFamily: "'Space Mono', monospace" }}>{formatINR(pos.cost_value)}</div>
+                                    </div>
+                                    <div>
+                                      <div style={{ fontSize: 9, color: theme.text2, marginBottom: 2 }}>Market Value</div>
+                                      <div style={{ fontSize: 11, fontWeight: 600, color: theme.text, fontFamily: "'Space Mono', monospace" }}>{formatINR(pos.market_value)}</div>
+                                    </div>
+                                    <div>
+                                      <div style={{ fontSize: 9, color: theme.text2, marginBottom: 2 }}>Day Return</div>
+                                      <div style={{
+                                        fontSize: 11,
+                                        fontWeight: 600,
+                                        color: isDayProfit ? "#00e5a0" : "#ef4444",
+                                        fontFamily: "'Space Mono', monospace"
+                                      }}>
+                                        {isDayProfit ? "+" : ""}{dayPnlPct.toFixed(2)}%
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Actions */}
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                    <div style={{ fontSize: 8, color: theme.text3, lineHeight: "1.3" }}>
+                                      <div>Updated: {formatExactDateTime(pos.updated_at)}</div>
+                                      <div style={{ color: "#00e5a0", marginTop: 2 }}>{formatPreciseRelativeTime(pos.updated_at)}</div>
+                                    </div>
+                                    <div style={{ display: "flex", gap: 8 }}>
+                                      <button
+                                        onClick={() => {
+                                          if (pos.is_option) {
+                                            const underlying = pos.name.split(" ")[0];
+                                            setOptionUnderlying(underlying);
+                                            setSelectedOptionContract({
+                                              key: pos.isin,
+                                              symbol: pos.name,
+                                              underlying: underlying,
+                                              expiry: pos.expiry,
+                                              side: "buy",
+                                              type: pos.name.split(" ")[2],
+                                              strike: parseFloat(pos.name.split(" ")[1]),
+                                              ltp: pos.current_price
+                                            });
+                                            setActivePage("options");
+                                          } else {
+                                            setSelected(pos.isin);
+                                            setActivePage("stock");
+                                            setShowWatchlist(false);
+                                          }
+                                        }}
+                                        disabled={paperBusy}
+                                        style={{
+                                          background: "#0f2a24",
+                                          color: "#4ade80",
+                                          border: "1px solid #4ade8055",
+                                          borderRadius: 6,
+                                          padding: "6px 12px",
+                                          fontSize: 10,
+                                          fontWeight: 700,
+                                          cursor: paperBusy ? "not-allowed" : "pointer",
+                                          opacity: paperBusy ? 0.5 : 1,
+                                          transition: "all 0.2s ease"
+                                        }}
+                                      >
+                                        BUY
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          const executionPrice = pos.current_price;
+                                          const amount = pos.quantity * executionPrice;
+                                          placePaperOrder(
+                                            "sell",
+                                            pos.isin,
+                                            amount,
+                                            executionPrice,
+                                            pos.is_option ? pos.name : null,
+                                            pos.is_option ? pos.expiry : null
+                                          );
+                                        }}
+                                        disabled={paperBusy}
+                                        style={{
+                                          background: "#2a1218",
+                                          color: "#f87171",
+                                          border: "1px solid #f8717155",
+                                          borderRadius: 6,
+                                          padding: "6px 12px",
+                                          fontSize: 10,
+                                          fontWeight: 700,
+                                          cursor: paperBusy ? "not-allowed" : "pointer",
+                                          opacity: paperBusy ? 0.5 : 1,
+                                          transition: "all 0.2s ease"
+                                        }}
+                                      >
+                                        SELL
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        ))}
+                        ) : (
+                          <div style={{
+                            textAlign: "center", padding: "40px 20px",
+                            border: `1px dashed ${theme.border}`, borderRadius: 12,
+                            color: theme.text2, fontSize: 12
+                          }}>
+                            No open holdings in your paper portfolio yet. Go to Stock Page to Buy stocks.
+                          </div>
+                        )}
                       </div>
-                    ) : (
+                    </div>
+                  )}
+
+                  {adminMobileTab === "trades" && (
+                    <div style={{
+                      ...glassCard,
+                      borderRadius: 16,
+                      padding: "20px"
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                        <div style={{ fontSize: 12, color: "#9bb0c4", letterSpacing: 1, fontWeight: 700 }}>RECENT TRANSACTION LOG</div>
+                        <span style={{ fontSize: 9, color: theme.text3 }}>Last 15 trades</span>
+                      </div>
+
+                      {(paper.trades || []).length ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                          {(paper.trades || []).slice(0, 15).map((trade) => (
+                            <div key={trade.id} style={{
+                              background: themeMode === "light" ? "rgba(0,0,0,0.02)" : "rgba(255,255,255,0.01)",
+                              border: `1px solid ${theme.border}`,
+                              borderRadius: 10,
+                              padding: 12,
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 8
+                            }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <span style={{
+                                    color: trade.side === "buy" ? "#00e5a0" : "#ef4444",
+                                    textTransform: "uppercase", fontSize: 9, fontWeight: 800,
+                                    background: trade.side === "buy" ? "rgba(0, 229, 160, 0.1)" : "rgba(239, 68, 68, 0.1)",
+                                    padding: "3px 6px", borderRadius: 4,
+                                    border: `1px solid ${trade.side === "buy" ? "rgba(0, 229, 160, 0.2)" : "rgba(239, 68, 68, 0.2)"}`
+                                  }}>
+                                    {trade.side}
+                                  </span>
+                                  <span style={{ fontSize: 12, fontWeight: 700, color: theme.text }}>
+                                    {trade.name || trade.isin}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: theme.text, fontFamily: "'Space Mono', monospace" }}>
+                                  {formatINR(trade.gross_value)}
+                                </div>
+                              </div>
+
+                              {trade.is_option && trade.expiry && (
+                                <div style={{ fontSize: 9, color: "#ffb077", fontWeight: 600 }}>
+                                  Expiry: {trade.expiry} ({getDaysRemaining(trade.expiry)})
+                                </div>
+                              )}
+
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10, color: theme.text2, borderTop: `1px solid ${theme.border}`, paddingTop: 6 }}>
+                                <div>Qty: {roundQty(trade.quantity)} @ {formatINR(trade.price)}</div>
+                                <div style={{ fontSize: 8, color: theme.text3 }}>
+                                  {formatExactDateTime(trade.created_at)}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: "center", padding: "40px 20px", color: theme.text2, fontSize: 11 }}>
+                          No trades logged yet.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {adminMobileTab === "controls" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                      {/* Admin Funding / Reset Control */}
                       <div style={{
-                        textAlign: "center", padding: "20px 10px",
-                        color: "#556a84", fontSize: 11
+                        ...glassCard,
+                        borderRadius: 16,
+                        padding: "20px"
                       }}>
-                        No trades logged yet.
+                        <div style={{ fontSize: 12, color: "#9bb0c4", letterSpacing: 1, fontWeight: 700, marginBottom: 14 }}>ADMIN CONTROLS</div>
+
+                        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                          <div>
+                            <label style={{ display: "block", fontSize: 10, color: theme.text2, marginBottom: 6, fontWeight: 600 }}>ADD FUNDS (INR)</label>
+                            <input
+                              type="number" min="0" step="0.01" value={fundAmount} onChange={(e) => setFundAmount(e.target.value)}
+                              placeholder="Amount in INR (e.g. 50000)"
+                              style={{
+                                width: "100%", background: themeMode === "light" ? "#fff" : "#050b12", border: `1px solid ${theme.border}`,
+                                color: theme.text, borderRadius: 8, padding: "10px 12px",
+                                fontSize: 12, outline: "none"
+                              }}
+                            />
+                          </div>
+
+                          <button
+                            onClick={handleAddFunds} disabled={paperBusy}
+                            style={{
+                              width: "100%", background: "#00e5a022", color: "#00e5a0",
+                              border: "1px solid #00e5a055", borderRadius: 8,
+                              padding: "10px 14px", fontSize: 12, fontWeight: 700,
+                              cursor: paperBusy ? "not-allowed" : "pointer", opacity: paperBusy ? 0.6 : 1
+                            }}
+                          >
+                            {paperBusy ? "PROCESSING..." : "DEPOSIT FUNDS"}
+                          </button>
+
+                          <div style={{ borderTop: `1px solid ${theme.border}`, margin: "8px 0" }} />
+
+                          <button
+                            onClick={resetPaperAccount} disabled={paperBusy}
+                            style={{
+                              width: "100%", background: "#ef444415", color: "#fca5a5",
+                              border: "1px solid #ef444455", borderRadius: 8,
+                              padding: "10px 14px", fontSize: 12, fontWeight: 700,
+                              cursor: paperBusy ? "not-allowed" : "pointer", opacity: paperBusy ? 0.6 : 1
+                            }}
+                          >
+                            RESET ACCOUNT (0 CASH)
+                          </button>
+                        </div>
+
+                        <div style={{ marginTop: 16, fontSize: 10, color: theme.text2, lineHeight: "1.4", borderTop: `1px solid ${theme.border}`, paddingTop: 12 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                            <span>Total funded so far:</span>
+                            <span style={{ color: theme.text, fontFamily: "'Space Mono', monospace", fontWeight: 600 }}>{formatINR(paper.total_funded)}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between" }}>
+                            <span>P/L vs funded:</span>
+                            <span style={{ color: (paper.pnl_vs_funded ?? 0) >= 0 ? "#00e5a0" : "#ef4444", fontFamily: "'Space Mono', monospace", fontWeight: 600 }}>
+                              {formatINR(paper.pnl_vs_funded)}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                    )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                // Desktop view (original layout)
+                <div style={{ display: "grid", gridTemplateColumns: "2.1fr 1fr", gap: "24px", alignItems: "start" }}>
+                  {/* Left Side: Metrics & Positions */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                    {/* Metric Cards */}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+                      {[
+                        { label: "Cash Balance", value: formatINR(paper.cash_balance), color: "#00e5a0", desc: "Available for trading" },
+                        { label: "Total Invested", value: formatINR(paper.invested_cost), color: "#9fe7ff", desc: "Capital in holdings" },
+                        { label: "Market Value", value: formatINR(paper.market_value), color: "#4a9eff", desc: "Current holdings value" },
+                        { label: "Total Profit / Loss", value: formatINR(paper.total_pnl), color: (paper.total_pnl ?? 0) >= 0 ? "#00e5a0" : "#ef4444", desc: "Unrealized P/L of open positions" },
+                      ].map((item) => (
+                        <div key={item.label} style={{
+                          ...glassCard,
+                          borderRadius: 16,
+                          padding: "16px"
+                        }}>
+                          <div style={{ fontSize: 10, color: "#556a84", letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 6 }}>{item.label}</div>
+                          <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: item.color, marginBottom: 4 }}>{item.value}</div>
+                          <div style={{ fontSize: 10, color: "#3a4e68" }}>{item.desc}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Open Positions Card */}
+                    <div style={{
+                      ...glassCard,
+                      borderRadius: 16,
+                      padding: "20px",
+                      boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                        <div style={{ fontSize: 12, color: "#9bb0c4", letterSpacing: 1, fontWeight: 700 }}>PORTFOLIO HOLDINGS</div>
+                        <div style={{ fontSize: 10, color: "#556a84" }}>{(paper.positions || []).length} active assets</div>
+                      </div>
+
+                      {(paper.positions || []).length ? (
+                        <div style={{ overflowX: "auto" }}>
+                          <div style={{ overflow: "hidden", minWidth: "auto" }}>
+                            <div style={{
+                              display: "grid",
+                              gridTemplateColumns: "1.3fr 1.1fr 1.0fr 0.9fr 1.0fr 1.2fr 0.9fr",
+                              background: "#0c1827", color: "#556a84",
+                              fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase"
+                            }}>
+                              <div style={{ padding: "12px 14px" }}>Asset</div>
+                              <div style={{ padding: "12px 14px" }}>Amt Purchased</div>
+                              <div style={{ padding: "12px 14px" }}>Avg Cost</div>
+                              <div style={{ padding: "12px 14px" }}>Current</div>
+                              <div style={{ padding: "12px 14px" }}>Unrealized P/L</div>
+                              <div style={{ padding: "12px 14px" }}>Purchase Date & Recency</div>
+                              <div style={{ padding: "12px 14px", textAlign: "center" }}>Action</div>
+                            </div>
+                            {(paper.positions || []).map((pos) => (
+                              <div key={pos.id || pos.isin} style={{
+                                display: "grid",
+                                gridTemplateColumns: "1.3fr 1.1fr 1.0fr 0.9fr 1.0fr 1.2fr 0.9fr",
+                                borderTop: "1px solid #142234", fontSize: 12,
+                                background: theme.card, color: "#cde",
+                                alignItems: "center"
+                              }}>
+                                <div style={{ padding: "12px 14px" }}>
+                                  <div style={{ fontWeight: 600, color: theme.text }}>{pos.name}</div>
+                                  <div style={{ fontSize: 9, color: "#556a84", marginTop: 2, display: "flex", flexDirection: "column", gap: 2 }}>
+                                    {pos.is_option && pos.expiry ? (
+                                      <>
+                                        <span style={{ color: theme.text2 }}>Expiry: <span style={{ color: "#cde" }}>{pos.expiry}</span></span>
+                                        <span style={{ color: "#ffb077", fontWeight: 500 }}>({getDaysRemaining(pos.expiry)})</span>
+                                      </>
+                                    ) : (
+                                      pos.isin
+                                    )}
+                                  </div>
+                                </div>
+                                <div style={{ padding: "12px 14px", fontFamily: "'Space Mono', monospace", color: "#9bb0c4" }}>
+                                  {formatINR(pos.cost_value)}
+                                </div>
+                                <div style={{ padding: "12px 14px", fontFamily: "'Space Mono', monospace", color: "#9bb0c4" }}>
+                                  {formatINR(pos.avg_price)}
+                                </div>
+                                <div style={{ padding: "12px 14px", fontFamily: "'Space Mono', monospace", color: theme.text }}>
+                                  {formatINR(pos.current_price)}
+                                </div>
+                                <div style={{
+                                  padding: "12px 14px",
+                                  fontFamily: "'Space Mono', monospace",
+                                  color: (pos.unrealized_pnl ?? 0) >= 0 ? "#00e5a0" : "#ef4444",
+                                  fontWeight: 600
+                                }}>
+                                  {formatINR(pos.unrealized_pnl)}
+                                </div>
+                                <div style={{ padding: "12px 14px", color: "#9bb0c4" }}>
+                                  <div style={{ color: theme.text, fontFamily: "'Space Mono', monospace" }}>{formatExactDateTime(pos.updated_at)}</div>
+                                  <div style={{ fontSize: 10, color: "#00e5a0", marginTop: 2 }}>{formatPreciseRelativeTime(pos.updated_at)}</div>
+                                </div>
+                                <div style={{ padding: "8px 6px", display: "flex", gap: "4px", justifyContent: "center" }}>
+                                  <button
+                                    onClick={() => {
+                                      if (pos.is_option) {
+                                        const underlying = pos.name.split(" ")[0];
+                                        setOptionUnderlying(underlying);
+                                        setSelectedOptionContract({
+                                          key: pos.isin,
+                                          symbol: pos.name,
+                                          underlying: underlying,
+                                          expiry: pos.expiry,
+                                          side: "buy",
+                                          type: pos.name.split(" ")[2],
+                                          strike: parseFloat(pos.name.split(" ")[1]),
+                                          ltp: pos.current_price
+                                        });
+                                        setActivePage("options");
+                                      } else {
+                                        setSelected(pos.isin);
+                                        setActivePage("stock");
+                                        setShowWatchlist(false);
+                                      }
+                                    }}
+                                    disabled={paperBusy}
+                                    style={{
+                                      background: "#0f2a24",
+                                      color: "#4ade80",
+                                      border: "1px solid #4ade8055",
+                                      borderRadius: 6,
+                                      padding: "6px 8px",
+                                      fontSize: 10,
+                                      fontWeight: 700,
+                                      cursor: paperBusy ? "not-allowed" : "pointer",
+                                      opacity: paperBusy ? 0.5 : 1,
+                                      transition: "all 0.2s ease"
+                                    }}
+                                  >
+                                    BUY
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      const executionPrice = pos.current_price;
+                                      const amount = pos.quantity * executionPrice;
+                                      placePaperOrder(
+                                        "sell",
+                                        pos.isin,
+                                        amount,
+                                        executionPrice,
+                                        pos.is_option ? pos.name : null,
+                                        pos.is_option ? pos.expiry : null
+                                      );
+                                    }}
+                                    disabled={paperBusy}
+                                    style={{
+                                      background: "#2a1218",
+                                      color: "#f87171",
+                                      border: "1px solid #f8717155",
+                                      borderRadius: 6,
+                                      padding: "6px 8px",
+                                      fontSize: 10,
+                                      fontWeight: 700,
+                                      cursor: paperBusy ? "not-allowed" : "pointer",
+                                      opacity: paperBusy ? 0.5 : 1,
+                                      transition: "all 0.2s ease"
+                                    }}
+                                  >
+                                    SELL
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{
+                          textAlign: "center", padding: "40px 20px",
+                          border: "1px dashed #142234", borderRadius: 8,
+                          color: "#556a84", fontSize: 12
+                        }}>
+                          No open holdings in your paper portfolio yet. Go to Stock Page to Buy stocks.
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                </div>
+                  {/* Right Side: Admin Tools & Transaction Log */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                    {/* Admin Funding / Reset Control */}
+                    <div style={{
+                      ...glassCard,
+                      borderRadius: 16,
+                      padding: "20px"
+                    }}>
+                      <div style={{ fontSize: 12, color: "#9bb0c4", letterSpacing: 1, fontWeight: 700, marginBottom: 14 }}>ADMIN CONTROLS</div>
 
-              </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                        <div>
+                          <label style={{ display: "block", fontSize: 10, color: "#556a84", marginBottom: 6, fontWeight: 600 }}>ADD FUNDS (INR)</label>
+                          <input
+                            type="number" min="0" step="0.01" value={fundAmount} onChange={(e) => setFundAmount(e.target.value)}
+                            placeholder="Amount in INR (e.g. 50000)"
+                            style={{
+                              width: "100%", background: "#050b12", border: "1px solid #142234",
+                              color: "#cde", borderRadius: 8, padding: "10px 12px",
+                              fontSize: 12, outline: "none"
+                            }}
+                          />
+                        </div>
+
+                        <button
+                          onClick={handleAddFunds} disabled={paperBusy}
+                          style={{
+                            width: "100%", background: "#00e5a022", color: "#00e5a0",
+                            border: "1px solid #00e5a055", borderRadius: 8,
+                            padding: "10px 14px", fontSize: 12, fontWeight: 700,
+                            cursor: paperBusy ? "not-allowed" : "pointer", opacity: paperBusy ? 0.6 : 1
+                          }}
+                        >
+                          {paperBusy ? "PROCESSING..." : "DEPOSIT FUNDS"}
+                        </button>
+
+                        <div style={{ borderTop: "1px solid #142234", margin: "8px 0" }} />
+
+                        <button
+                          onClick={resetPaperAccount} disabled={paperBusy}
+                          style={{
+                            width: "100%", background: "#ef444415", color: "#fca5a5",
+                            border: "1px solid #ef444455", borderRadius: 8,
+                            padding: "10px 14px", fontSize: 12, fontWeight: 700,
+                            cursor: paperBusy ? "not-allowed" : "pointer", opacity: paperBusy ? 0.6 : 1
+                          }}
+                        >
+                          RESET ACCOUNT (0 CASH)
+                        </button>
+                      </div>
+
+                      <div style={{ marginTop: 14, fontSize: 10, color: "#556a84", lineHeight: "1.4" }}>
+                        Total funded so far: <span style={{ color: theme.text, fontFamily: "'Space Mono', monospace" }}>{formatINR(paper.total_funded)}</span><br />
+                        P/L vs funded: <span style={{ color: (paper.pnl_vs_funded ?? 0) >= 0 ? "#00e5a0" : "#ef4444", fontFamily: "'Space Mono', monospace", fontWeight: 600 }}>{formatINR(paper.pnl_vs_funded)}</span>
+                      </div>
+                    </div>
+
+                    {/* Unified Activity Log (Cleaned up trades / ledger) */}
+                    <div style={{
+                      ...glassCard,
+                      borderRadius: 16,
+                      padding: "20px"
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                        <div style={{ fontSize: 12, color: "#9bb0c4", letterSpacing: 1, fontWeight: 700 }}>RECENT TRANSACTION LOG</div>
+                        <span style={{ fontSize: 9, color: "#556a84" }}>Last 8 trades</span>
+                      </div>
+
+                      {(paper.trades || []).length ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          {(paper.trades || []).slice(0, 8).map((trade) => (
+                            <div key={trade.id} style={{
+                              borderBottom: "1px solid #0e1a29", paddingBottom: 8,
+                              display: "grid", gridTemplateColumns: "1fr auto", gap: "4px"
+                            }}>
+                              <div>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: theme.text }}>
+                                  <span style={{
+                                    color: trade.side === "buy" ? "#00e5a0" : "#ef4444",
+                                    marginRight: 6, textTransform: "uppercase", fontSize: 9, fontWeight: 800,
+                                    background: trade.side === "buy" ? "#00e5a015" : "#ef444415",
+                                    padding: "2px 6px", borderRadius: 4
+                                  }}>
+                                    {trade.side}
+                                  </span>
+                                  {trade.name || trade.isin}
+                                </div>
+                                <div style={{ fontSize: 9, color: "#556a84", marginTop: 4 }}>
+                                  {trade.is_option && trade.expiry ? (
+                                    <div style={{ marginBottom: 4 }}>
+                                      <span style={{ color: theme.text2 }}>Expiry: <span style={{ color: "#cde" }}>{trade.expiry}</span></span>
+                                      <span style={{ color: "#ffb077", marginLeft: 4 }}>({getDaysRemaining(trade.expiry)})</span>
+                                    </div>
+                                  ) : null}
+                                  {formatExactDateTime(trade.created_at)} ({formatPreciseRelativeTime(trade.created_at)})
+                                </div>
+                              </div>
+                              <div style={{ textAlign: "right" }}>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: "#cde", fontFamily: "'Space Mono', monospace" }}>
+                                  {formatINR(trade.gross_value)}
+                                </div>
+                                <div style={{ fontSize: 9, color: "#556a84", marginTop: 4 }}>
+                                  {roundQty(trade.quantity)} qty @ {formatINR(trade.price)}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{
+                          textAlign: "center", padding: "20px 10px",
+                          color: "#556a84", fontSize: 11
+                        }}>
+                          No trades logged yet.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )
         ) : loading && !data ? (
