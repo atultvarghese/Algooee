@@ -23,7 +23,7 @@ echo "[+] Running as user: ${APP_USER}"
 # --- 2. System Update & Dependencies ---
 echo "[+] Updating system packages and installing dependencies..."
 apt-get update -y
-apt-get install -y python3.11 python3.11-venv python3.11-dev build-essential nginx curl
+apt-get install -y python3 python3-venv python3-dev build-essential nginx curl
 
 # --- 3. Swap Space Configuration ---
 # 2GB of swap space is highly recommended for t3.micro/small instances to avoid out-of-memory errors
@@ -48,7 +48,7 @@ fi
 echo "[+] Setting up Python virtual environment..."
 cd "${APP_DIR}"
 if [ ! -d ".venv" ]; then
-  python3.11 -m venv .venv
+  python3 -m venv .venv
 fi
 source .venv/bin/activate
 pip install --upgrade pip
