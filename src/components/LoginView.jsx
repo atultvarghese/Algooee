@@ -249,23 +249,7 @@ export default function LoginView({ onLoginSuccess, API_BASE }) {
           {isRegister ? "Already have an account? Sign In" : "Don't have an account? Register"}
         </button>
 
-        {!isRegister && (
-          <div style={{
-            background: "#0a1520",
-            borderRadius: "8px",
-            padding: "12px 14px",
-            marginTop: "20px",
-            fontSize: "11px",
-            color: "#8899aa",
-            border: "1px dashed #142234",
-            lineHeight: "1.4",
-            textAlign: "left"
-          }}>
-            <span style={{ color: "#00e5a0", fontWeight: 700 }}>Default Admin Account:</span><br />
-            Email: <span style={{ color: "#fff", fontFamily: "monospace" }}>admin@algooee.local</span><br />
-            Password: <span style={{ color: "#fff", fontFamily: "monospace" }}>admin123</span>
-          </div>
-        )}
+
       </div>
     </div>
   );
