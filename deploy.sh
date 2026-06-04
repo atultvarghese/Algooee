@@ -64,33 +64,11 @@ fi
 
 # Install and alias Node 25.6.1 as default for the user
 echo "[+] Installing Node.js v25.6.1..."
-sudo -u "${APP_USER}" -i bash -c '
-  export NVM_DIR="$HOME/.nvm"
-  if [ -s "$NVM_DIR/nvm.sh" ]; then
-    . "$NVM_DIR/nvm.sh"
-    nvm install 25.6.1
-    nvm alias default 25.6.1
-  else
-    echo "[-] Error: NVM script not found at $NVM_DIR/nvm.sh"
-    exit 1
-  fi
-'
+sudo -u "${APP_USER}" -i bash -c 'export NVM_DIR="$HOME/.nvm"; if [ -s "$NVM_DIR/nvm.sh" ]; then . "$NVM_DIR/nvm.sh" && nvm install 25.6.1 && nvm alias default 25.6.1; else echo "[-] Error: NVM script not found at $NVM_DIR/nvm.sh"; exit 1; fi'
 
 # --- 6. Frontend Setup & Build ---
 echo "[+] Installing frontend dependencies & building production bundle using Node.js v25.6.1..."
-sudo -u "${APP_USER}" -i bash -c '
-  cd '"${APP_DIR}"'
-  export NVM_DIR="$HOME/.nvm"
-  if [ -s "$NVM_DIR/nvm.sh" ]; then
-    . "$NVM_DIR/nvm.sh"
-    nvm use 25.6.1
-    npm install
-    npm run build
-  else
-    echo "[-] Error: NVM script not found at $NVM_DIR/nvm.sh"
-    exit 1
-  fi
-'
+sudo -u "${APP_USER}" -i bash -c 'cd '"${APP_DIR}"'; export NVM_DIR="$HOME/.nvm"; if [ -s "$NVM_DIR/nvm.sh" ]; then . "$NVM_DIR/nvm.sh" && nvm use 25.6.1 && npm install && npm run build; else echo "[-] Error: NVM script not found at $NVM_DIR/nvm.sh"; exit 1; fi'
 
 # --- 7. Set Up Environment File ---
 if [ ! -f ".env" ]; then
