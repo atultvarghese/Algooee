@@ -40,8 +40,7 @@ function DashboardContent({ currentUser, onLogout }) {
   const [activePage, setActivePage] = useState("stock");
   const [optionUnderlying, setOptionUnderlying] = useState("NIFTY");
   const [selectedOptionContract, setSelectedOptionContract] = useState(null);
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  const [showWatchlist, setShowWatchlist] = useState(false);
+  const [showWatchlist, setShowWatchlist] = useState(window.innerWidth <= 768);
   const [themeMode, setThemeMode] = useState(localStorage.getItem("theme") || "dark");
 
   useEffect(() => {
@@ -273,15 +272,28 @@ function DashboardContent({ currentUser, onLogout }) {
             </div>
           </div>
           {isMobile && (
-            <button
-              onClick={() => setShowWatchlist(!showWatchlist)}
-              style={{
-                background: theme.card2, color: "#778899", border: `1px solid ${theme.border}`,
-                borderRadius: 8, padding: "6px 12px", fontSize: 10, fontWeight: 700, cursor: "pointer"
-              }}
-            >
-              {showWatchlist ? "HIDE WATCHLIST" : "SHOW WATCHLIST"}
-            </button>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {activePage === "stock" && (
+                <button
+                  onClick={() => setShowWatchlist(!showWatchlist)}
+                  style={{
+                    background: theme.card2, color: "#778899", border: `1px solid ${theme.border}`,
+                    borderRadius: 8, padding: "6px 12px", fontSize: 10, fontWeight: 700, cursor: "pointer"
+                  }}
+                >
+                  {showWatchlist ? "DETAILS" : "WATCHLIST"}
+                </button>
+              )}
+              <button
+                onClick={onLogout}
+                style={{
+                  background: "#2a1218", color: "#f87171", border: "1px solid #f8717155",
+                  borderRadius: 8, padding: "6px 12px", fontSize: 10, fontWeight: 700, cursor: "pointer"
+                }}
+              >
+                LOGOUT
+              </button>
+            </div>
           )}
         </div>
         <div style={{
@@ -350,54 +362,56 @@ function DashboardContent({ currentUser, onLogout }) {
               </div>
               <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#00e5a0", boxShadow: "0 0 8px #00e5a0", animation: "pulse 2s infinite" }} />
             </div>
+            <button
+              onClick={() =>
+                setThemeMode(
+                  themeMode === "dark"
+                    ? "light"
+                    : "dark"
+                )
+              }
+              style={{
+                background: theme.card,
+                color: theme.text,
+                border: `1px solid ${theme.border}`,
+                borderRadius: 8,
+                padding: "6px 12px",
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: "pointer"
+              }}
+            >
+              {themeMode === "dark"
+                ? "☀️ LIGHT"
+                : "🌙 DARK"}
+            </button>
 
-              <button
-                onClick={() =>
-                  setThemeMode(
-                    themeMode === "dark"
-                      ? "light"
-                      : "dark"
-                  )
-                }
-                style={{
-                  background: theme.card,
-                  color: theme.text,
-                  border: `1px solid ${theme.border}`,
-                  borderRadius: 8,
-                  padding: "6px 12px",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: "pointer"
-                }}
-              >
-                {themeMode === "dark"
-                  ? "☀️ LIGHT"
-                  : "🌙 DARK"}
-              </button>
-
+            {!isMobile && (
               <button
                 onClick={onLogout}
-              style={{
-                background: "#2a1218", color: "#f87171", border: "1px solid #f8717155",
-                borderRadius: 8, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer",
-                transition: "all 0.2s ease"
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "#ef4444"; e.currentTarget.style.color = "#fff"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "#2a1218"; e.currentTarget.style.color = "#f87171"; }}
-            >
-              LOGOUT
-            </button>
+                style={{
+                  background: "#2a1218", color: "#f87171", border: "1px solid #f8717155",
+                  borderRadius: 8, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer",
+                  transition: "all 0.2s ease"
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "#ef4444"; e.currentTarget.style.color = "#fff"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "#2a1218"; e.currentTarget.style.color = "#f87171"; }}
+              >
+                LOGOUT
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       {/* Sidebar */}
-      {(!isMobile || showWatchlist) && activePage !== "users" && (
+      {((!isMobile && activePage !== "users") || (isMobile && activePage === "stock" && showWatchlist)) && (
         <div style={{
           borderRight: isMobile ? "none" : `1px solid ${theme.border}`,
           borderBottom: isMobile ? `1px solid ${theme.border}` : "none",
-          padding: 16, overflowY: "auto", background: theme.card ,
-          maxHeight: isMobile ? "300px" : "none"
+          padding: 16, overflowY: "auto", background: theme.card,
+          height: isMobile ? "calc(100vh - 60px)" : "auto",
+          maxHeight: "none"
         }}>
         <div style={{ fontSize: 10, color: theme.text2, letterSpacing: 2, marginBottom: 12, paddingLeft: 4 }}>WATCHLIST</div>
         <div style={{ marginBottom: 10 }}>
@@ -479,6 +493,7 @@ function DashboardContent({ currentUser, onLogout }) {
                   setOptionUnderlying(s.ticker);
                 } else {
                   setActivePage("stock");
+                  setShowWatchlist(false);
                 }
               }} onRemove={() => removeWatchlistStock(s.ticker)} />
           ))}
@@ -488,7 +503,28 @@ function DashboardContent({ currentUser, onLogout }) {
       )}
 
       {/* Main content */}
-      <div style={{ overflowY: "auto", padding: isMobile ? "16px 12px" : "24px 28px" }}>
+      {(!isMobile || activePage !== "stock" || !showWatchlist) && (
+        <div style={{ overflowY: "auto", padding: isMobile ? "16px 12px" : "24px 28px" }}>
+          {isMobile && activePage === "stock" && !showWatchlist && (
+            <button
+              onClick={() => setShowWatchlist(true)}
+              style={{
+                background: "transparent",
+                color: "#00e5a0",
+                border: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                marginBottom: 16,
+                padding: "4px 0"
+              }}
+            >
+              ← Back to Watchlist
+            </button>
+          )}
         {activePage === "users" ? (
           <UserManagementView API_BASE={API_BASE} currentUser={currentUser} />
         ) : activePage === "options" ? (
@@ -652,9 +688,10 @@ function DashboardContent({ currentUser, onLogout }) {
                                     });
                                     setActivePage("options");
                                   } else {
-                                    setSelected(pos.isin);
-                                    setActivePage("stock");
-                                  }
+                                     setSelected(pos.isin);
+                                     setActivePage("stock");
+                                     setShowWatchlist(false);
+                                   }
                                 }}
                                 disabled={paperBusy}
                                 style={{
@@ -1200,8 +1237,9 @@ function DashboardContent({ currentUser, onLogout }) {
               </>
             )}
           </>
-        ) : null}
+         ) : null}
       </div>
+      )}
     </div>
   );
 }
