@@ -1556,6 +1556,26 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
                 </div>
               )}
 
+              {data?.error && (
+                <div style={{
+                  marginBottom: 16,
+                  borderRadius: 10,
+                  padding: "12px 16px",
+                  border: `1px solid #f8717133`,
+                  background: "#1e0b0e",
+                  color: "#fca5a5",
+                  fontSize: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10
+                }}>
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#ef4444" }} />
+                  <div>
+                    <strong>Market Data Unavailable:</strong> {data.error.includes("Upstox API client not configured") ? "Upstox API client is not configured. Please set UPSTOX_API_TOKEN in your .env file to enable live market quotes." : data.error}
+                  </div>
+                </div>
+              )}
+
               {/* Stock header */}
               <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", gap: isMobile ? 12 : 0, marginBottom: 24 }}>
                 <div>
@@ -1578,9 +1598,13 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
                         Today: {formatINR(todayPrice)}{data?.hasPrediction ? ` · Predicted: ${formatINR(predictedVal)}` : ""}
                       </div>
                     </div>
-                    <span style={{ color: data?.changePct >= 0 ? "#4ade80" : "#f87171", fontSize: 14, fontWeight: 600 }}>
-                      {data?.changePct >= 0 ? "▲" : "▼"} {Math.abs(data?.change ?? 0)} ({Math.abs(data?.changePct ?? 0)}%)
-                    </span>
+                    {data?.changePct !== null && data?.changePct !== undefined ? (
+                      <span style={{ color: data.changePct >= 0 ? "#4ade80" : "#f87171", fontSize: 14, fontWeight: 600 }}>
+                        {data.changePct >= 0 ? "▲" : "▼"} {Math.abs(data.change ?? 0)} ({Math.abs(data.changePct)}%)
+                      </span>
+                    ) : (
+                      <span style={{ color: theme.text3, fontSize: 14 }}>—</span>
+                    )}
                     <span style={{ fontSize: 11, color: theme.text2 }}>15D</span>
                   </div>
                 </div>
@@ -1616,14 +1640,14 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
                     Use Today
                   </button>
                   <button
-                    onClick={() => handlePlaceOrder("buy")} disabled={paperBusy}
-                    style={{ background: "#0f2a24", color: "#4ade80", border: "1px solid #4ade8055", borderRadius: 8, padding: "9px 14px", fontSize: 12, fontWeight: 700, cursor: paperBusy ? "not-allowed" : "pointer", opacity: paperBusy ? 0.6 : 1 }}
+                    onClick={() => handlePlaceOrder("buy")} disabled={paperBusy || !(Number(tradePrice || todayPrice || data?.lastPrice) > 0)}
+                    style={{ background: "#0f2a24", color: "#4ade80", border: "1px solid #4ade8055", borderRadius: 8, padding: "9px 14px", fontSize: 12, fontWeight: 700, cursor: (paperBusy || !(Number(tradePrice || todayPrice || data?.lastPrice) > 0)) ? "not-allowed" : "pointer", opacity: (paperBusy || !(Number(tradePrice || todayPrice || data?.lastPrice) > 0)) ? 0.6 : 1 }}
                   >
                     BUY
                   </button>
                   <button
-                    onClick={() => handlePlaceOrder("sell")} disabled={paperBusy}
-                    style={{ background: "#2a1218", color: "#f87171", border: "1px solid #f8717155", borderRadius: 8, padding: "9px 14px", fontSize: 12, fontWeight: 700, cursor: paperBusy ? "not-allowed" : "pointer", opacity: paperBusy ? 0.6 : 1 }}
+                    onClick={() => handlePlaceOrder("sell")} disabled={paperBusy || !(Number(tradePrice || todayPrice || data?.lastPrice) > 0)}
+                    style={{ background: "#2a1218", color: "#f87171", border: "1px solid #f8717155", borderRadius: 8, padding: "9px 14px", fontSize: 12, fontWeight: 700, cursor: (paperBusy || !(Number(tradePrice || todayPrice || data?.lastPrice) > 0)) ? "not-allowed" : "pointer", opacity: (paperBusy || !(Number(tradePrice || todayPrice || data?.lastPrice) > 0)) ? 0.6 : 1 }}
                   >
                     SELL
                   </button>
@@ -1851,11 +1875,36 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
                     <div style={{ fontSize: 10, color: theme.text2, letterSpacing: 2, marginBottom: 16 }}>TECHNICAL INDICATORS</div>
                     <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)", gap: 12 }}>
                       {[
-                        { label: "RSI (14)", value: data.indicators.rsi, note: data.indicators.rsi > 70 ? "Overbought" : data.indicators.rsi < 30 ? "Oversold" : "Neutral", color: data.indicators.rsi > 70 ? "#f87171" : data.indicators.rsi < 30 ? "#4ade80" : "#facc15" },
-                        { label: "MACD", value: data.indicators.macd, note: data.indicators.macd > 0 ? "Bullish" : "Bearish", color: data.indicators.macd > 0 ? "#4ade80" : "#f87171" },
-                        { label: "EMA 20", value: formatINR(data.indicators.ema20), note: data.lastPrice > data.indicators.ema20 ? "Above" : "Below", color: data.lastPrice > data.indicators.ema20 ? "#4ade80" : "#f87171" },
-                        { label: "EMA 50", value: formatINR(data.indicators.ema50), note: data.lastPrice > data.indicators.ema50 ? "Above" : "Below", color: data.lastPrice > data.indicators.ema50 ? "#4ade80" : "#f87171" },
-                        { label: "Volume", value: data.indicators.volume, note: "Avg Daily", color: "#778899" },
+                        {
+                          label: "RSI (14)",
+                          value: data.indicators.rsi !== null && data.indicators.rsi !== undefined ? data.indicators.rsi : "—",
+                          note: data.indicators.rsi !== null && data.indicators.rsi !== undefined ? (data.indicators.rsi > 70 ? "Overbought" : data.indicators.rsi < 30 ? "Oversold" : "Neutral") : "—",
+                          color: data.indicators.rsi !== null && data.indicators.rsi !== undefined ? (data.indicators.rsi > 70 ? "#f87171" : data.indicators.rsi < 30 ? "#4ade80" : "#facc15") : theme.text3
+                        },
+                        {
+                          label: "MACD",
+                          value: data.indicators.macd !== null && data.indicators.macd !== undefined ? data.indicators.macd : "—",
+                          note: data.indicators.macd !== null && data.indicators.macd !== undefined ? (data.indicators.macd > 0 ? "Bullish" : "Bearish") : "—",
+                          color: data.indicators.macd !== null && data.indicators.macd !== undefined ? (data.indicators.macd > 0 ? "#4ade80" : "#f87171") : theme.text3
+                        },
+                        {
+                          label: "EMA 20",
+                          value: data.indicators.ema20 !== null && data.indicators.ema20 !== undefined ? formatINR(data.indicators.ema20) : "—",
+                          note: data.indicators.ema20 !== null && data.indicators.ema20 !== undefined ? (data.lastPrice > data.indicators.ema20 ? "Above" : "Below") : "—",
+                          color: data.indicators.ema20 !== null && data.indicators.ema20 !== undefined ? (data.lastPrice > data.indicators.ema20 ? "#4ade80" : "#f87171") : theme.text3
+                        },
+                        {
+                          label: "EMA 50",
+                          value: data.indicators.ema50 !== null && data.indicators.ema50 !== undefined ? formatINR(data.indicators.ema50) : "—",
+                          note: data.indicators.ema50 !== null && data.indicators.ema50 !== undefined ? (data.lastPrice > data.indicators.ema50 ? "Above" : "Below") : "—",
+                          color: data.indicators.ema50 !== null && data.indicators.ema50 !== undefined ? (data.lastPrice > data.indicators.ema50 ? "#4ade80" : "#f87171") : theme.text3
+                        },
+                        {
+                          label: "Volume",
+                          value: data.indicators.volume !== null && data.indicators.volume !== undefined ? data.indicators.volume : "—",
+                          note: data.indicators.volume !== null && data.indicators.volume !== undefined ? "Avg Daily" : "—",
+                          color: theme.text3
+                        },
                       ].map(ind => (
                         <div key={ind.label} style={{ background: themeMode === "light" ? "rgba(255,255,255,0.45)" : theme.input, border: `1px solid ${theme.border}`, borderRadius: 8, padding: "12px 14px" }}>
                           <div style={{ fontSize: 10, color: theme.text2, letterSpacing: 1, marginBottom: 6 }}>{ind.label}</div>

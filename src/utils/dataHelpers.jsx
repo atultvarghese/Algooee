@@ -7,11 +7,11 @@ export function buildEmptyStockData(ticker) {
     backtestSummary: {},
     diagnostics: {},
     predicted: [],
-    lastPrice: 0,
-    change: 0,
-    changePct: 0,
-    confidence: 0,
-    confidenceLabel: "low",
+    lastPrice: null,
+    change: null,
+    changePct: null,
+    confidence: null,
+    confidenceLabel: "none",
     mae: null,
     mape: null,
     rmse: null,
@@ -20,10 +20,10 @@ export function buildEmptyStockData(ticker) {
     p90: null,
     errorRatioPct: null,
     expectedMovePct: null,
-    riskScore: 0,
-    trend: "Neutral",
-    trendStrength: 0,
-    indicators: { rsi: 0, macd: 0, ema20: 0, ema50: 0, volume: 0 },
+    riskScore: null,
+    trend: "—",
+    trendStrength: null,
+    indicators: { rsi: null, macd: null, ema20: null, ema50: null, volume: null },
   };
 }
 
@@ -39,8 +39,10 @@ export function normalizeTimestamp(value) {
 }
 
 export function toNumberOrNaN(value) {
+  if (value === null || value === undefined) return NaN;
   if (typeof value === "string") {
     const cleaned = value.replace(/[^0-9.+-]/g, "");
+    if (cleaned === "") return NaN;
     const n = Number(cleaned);
     return Number.isFinite(n) ? n : NaN;
   }

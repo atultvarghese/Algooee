@@ -215,7 +215,7 @@ export default function OptionsChainView({
   // Aggregate totals
   const totalCallOI = chain.reduce((acc, curr) => acc + (curr.call_options?.market_data?.oi || 0), 0);
   const totalPutOI = chain.reduce((acc, curr) => acc + (curr.put_options?.market_data?.oi || 0), 0);
-  const pcrRatio = totalCallOI > 0 ? (totalPutOI / totalCallOI).toFixed(2) : "0.00";
+  const pcrRatio = totalCallOI > 0 ? (totalPutOI / totalCallOI).toFixed(2) : "—";
 
   // Mobile Quick Trade Sheet Styles
   const mobileOverlayStyle = {

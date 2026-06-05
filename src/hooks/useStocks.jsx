@@ -260,7 +260,13 @@ export default function useStocks() {
       setStockData(d => ({ ...d, [ticker]: dataObj }));
     } catch (e) {
       console.error('Backend fetch failed, using zero-value fallback:', e);
-      setStockData(d => ({ ...d, [ticker]: buildEmptyStockData(ticker) }));
+      setStockData(d => ({
+        ...d,
+        [ticker]: {
+          ...buildEmptyStockData(ticker),
+          error: e.message || "Market data unavailable."
+        }
+      }));
     } finally {
       setLoading(false);
     }
