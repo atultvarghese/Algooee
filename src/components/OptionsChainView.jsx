@@ -217,6 +217,188 @@ export default function OptionsChainView({
   const totalPutOI = chain.reduce((acc, curr) => acc + (curr.put_options?.market_data?.oi || 0), 0);
   const pcrRatio = totalCallOI > 0 ? (totalPutOI / totalCallOI).toFixed(2) : "0.00";
 
+  // Mobile Quick Trade Sheet Styles
+  const mobileOverlayStyle = {
+    position: "fixed",
+    top: 0, left: 0, right: 0, bottom: 0,
+    background: "rgba(0, 0, 0, 0.65)",
+    backdropFilter: "blur(6px)",
+    WebkitBackdropFilter: "blur(6px)",
+    zIndex: 99999,
+    display: "flex",
+    alignItems: "flex-end",
+    justifyContent: "center"
+  };
+
+  const mobilePanelStyle = {
+    ...cardStyle,
+    borderRadius: "20px 20px 0 0",
+    padding: "24px 20px 32px 20px",
+    width: "100%",
+    maxWidth: "500px",
+    boxShadow: "0 -8px 32px rgba(0,0,0,0.5)",
+    zIndex: 100000,
+    maxHeight: "90vh",
+    overflowY: "auto",
+    animation: "slideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1)"
+  };
+
+  const tradeWidgetContent = tradeContract && (
+    <>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div style={{ fontSize: 12, color: isLight ? "#1f2937" : "#fff", fontWeight: 700, letterSpacing: 1 }}>PAPER TRADE OPTION</div>
+        <button
+          onClick={() => setTradeContract(null)}
+          style={{ background: "transparent", border: "none", color: "#556a84", cursor: "pointer", fontSize: 14, outline: "none" }}
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Contract Summary */}
+      <div style={{ background: isLight ? "rgba(0,0,0,0.03)" : "#050b12", border: `1px solid ${theme.border}`, borderRadius: 8, padding: 12, marginBottom: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: theme.text }}>{tradeContract.symbol}</span>
+          <span style={{
+            fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 4,
+            background: tradeContract.type === "CE" ? "#00e5a022" : "#ef444422",
+            color: tradeContract.type === "CE" ? "#00e5a0" : "#fca5a5"
+          }}>
+            {tradeContract.type}
+          </span>
+        </div>
+        <div style={{ fontSize: 11, color: "#556a84", marginTop: 6 }}>
+          Underlying Expiry: <span style={{ color: theme.text }}>{selectedExpiry}</span>
+        </div>
+        <div style={{ fontSize: 11, color: "#556a84", marginTop: 4 }}>
+          Lot Size: <span style={{ color: theme.text }}>{tradeContract.lotSize}</span>
+        </div>
+        <div style={{ fontSize: 11, color: "#556a84", marginTop: 4 }}>
+          Current LTP: <span style={{ color: "#00e5a0", fontWeight: 600 }}>{formatINR(tradeContract.ltp)}</span>
+        </div>
+      </div>
+
+      {/* Form */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* Buy/Sell Side Selector */}
+        <div>
+          <label style={{ display: "block", fontSize: 10, color: "#556a84", marginBottom: 6, fontWeight: 600 }}>TRANSACTION SIDE</label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => setTradeContract(prev => ({ ...prev, side: "buy" }))}
+              style={{
+                flex: 1, padding: "8px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer",
+                background: tradeContract.side === "buy" ? "#0f2a24" : (isLight ? "#f3f4f6" : "#050b12"),
+                color: tradeContract.side === "buy" ? "#4ade80" : "#556a84",
+                border: `1px solid ${tradeContract.side === "buy" ? "#4ade8055" : theme.border}`
+              }}
+            >
+              BUY (Long)
+            </button>
+            <button
+              onClick={() => setTradeContract(prev => ({ ...prev, side: "sell" }))}
+              style={{
+                flex: 1, padding: "8px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer",
+                background: tradeContract.side === "sell" ? "#2a1218" : (isLight ? "#f3f4f6" : "#050b12"),
+                color: tradeContract.side === "sell" ? "#f87171" : "#556a84",
+                border: `1px solid ${tradeContract.side === "sell" ? "#f8717155" : theme.border}`
+              }}
+            >
+              SELL (Short)
+            </button>
+          </div>
+        </div>
+
+        {/* Quantity input */}
+        <div>
+          <label style={{ display: "block", fontSize: 10, color: "#556a84", marginBottom: 6, fontWeight: 600 }}>QUANTITY TO TRADE (LOT MULTIPLE)</label>
+          <input
+            type="number" min={tradeContract.lotSize} step={tradeContract.lotSize} value={tradeAmount} onChange={(e) => setTradeAmount(e.target.value)}
+            placeholder={`E.g. ${tradeContract.lotSize}, ${tradeContract.lotSize * 2}, etc.`}
+            style={{
+              width: "100%", background: isLight
+                ? "rgba(255,255,255,.5)"
+                : "#050b12",
+              color: theme.text, border: `1px solid ${theme.border}`,
+              borderRadius: 8, padding: "10px 12px",
+              fontSize: 12, outline: "none"
+            }}
+          />
+        </div>
+
+        {/* Execution Price input */}
+        <div>
+          <label style={{ display: "block", fontSize: 10, color: "#556a84", marginBottom: 6, fontWeight: 600 }}>EXECUTION PRICE (INR)</label>
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              type="number" min="0" step="0.01" value={tradePrice} onChange={(e) => setTradePrice(e.target.value)}
+              placeholder="Premium Price"
+              style={{
+                flex: 1, background: isLight
+                  ? "rgba(255,255,255,.5)"
+                  : "#050b12",
+                color: theme.text, border: `1px solid ${theme.border}`,
+                borderRadius: 8, padding: "10px 12px",
+                fontSize: 12, outline: "none"
+              }}
+            />
+            <button
+              onClick={() => setTradePrice(tradeContract.ltp.toFixed(2))}
+              style={{
+                background: isLight ? "#f3f4f6" : "#0a1520", color: theme.text2, border: `1px solid ${theme.border}`,
+                borderRadius: 8, padding: "0 10px", fontSize: 10, cursor: "pointer"
+              }}
+            >
+              Use LTP
+            </button>
+          </div>
+        </div>
+
+        {/* Premium calculation */}
+        {tradeAmount && tradePrice && (
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#9bb0c4", marginTop: 4 }}>
+            <span>Est. Premium Cost:</span>
+            <span style={{ color: "#9fe7ff", fontWeight: 600 }}>
+              {formatINR(Number(tradeAmount) * Number(tradePrice))}
+            </span>
+          </div>
+        )}
+
+        {/* Balance view */}
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#556a84", marginTop: 4 }}>
+          <span>Wallet Balance:</span>
+          <span style={{ color: "#00e5a0", fontWeight: 600 }}>{formatINR(paper.cash_balance)}</span>
+        </div>
+
+        <div style={{ borderTop: `1px solid ${theme.border}`, margin: "8px 0" }} />
+
+        {/* Submit */}
+        <button
+          onClick={handlePlaceOrder} disabled={paperBusy || !tradeAmount || !tradePrice}
+          style={{
+            width: "100%", borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 700,
+            cursor: (paperBusy || !tradeAmount || !tradePrice) ? "not-allowed" : "pointer",
+            background: tradeContract.side === "buy" ? "#0f2a24" : "#2a1218",
+            color: tradeContract.side === "buy" ? "#4ade80" : "#f87171",
+            border: `1px solid ${tradeContract.side === "buy" ? "#4ade8055" : "#f8717155"}`,
+            opacity: (paperBusy || !tradeAmount || !tradePrice) ? 0.5 : 1
+          }}
+        >
+          {paperBusy ? "PROCESSING..." : `CONFIRM ${tradeContract.side.toUpperCase()} ORDER`}
+        </button>
+
+        {tradeNotice && (
+          <div style={{
+            marginTop: 10, padding: "8px 12px", borderRadius: 6, fontSize: 11, textAlign: "center",
+            background: "#051612", color: "#7cfccf", border: "1px solid #00e5a033"
+          }}>
+            {tradeNotice}
+          </div>
+        )}
+      </div>
+    </>
+  );
+
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "24px" }}>
       {/* Expiry and Underlying Selectors */}
@@ -500,174 +682,35 @@ export default function OptionsChainView({
           )}
         </div>
 
-        {/* Right Side: Options Quick Trade panel */}
-        {tradeContract && (
+        {/* Right Side: Options Quick Trade panel (Desktop View) */}
+        {tradeContract && !isMobile && (
           <div style={{
             ...cardStyle,
-            borderRadius: 12, padding: isMobile ? "16px" : "20px",
+            borderRadius: 12, padding: "20px",
             boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)",
-            position: isMobile ? "static" : "sticky", top: 20
+            position: "sticky", top: 20
           }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <div style={{ fontSize: 12, color: "#fff", fontWeight: 700, letterSpacing: 1 }}>PAPER TRADE OPTION</div>
-              <button
-                onClick={() => setTradeContract(null)}
-                style={{ background: "transparent", border: "none", color: "#556a84", cursor: "pointer", fontSize: 14 }}
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Contract Summary */}
-            <div style={{ background: "#050b12", border: "1px solid #142234", borderRadius: 8, padding: 12, marginBottom: 18 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{tradeContract.symbol}</span>
-                <span style={{
-                  fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 4,
-                  background: tradeContract.type === "CE" ? "#00e5a022" : "#ef444422",
-                  color: tradeContract.type === "CE" ? "#00e5a0" : "#fca5a5"
-                }}>
-                  {tradeContract.type}
-                </span>
-              </div>
-              <div style={{ fontSize: 11, color: "#556a84", marginTop: 6 }}>
-                Underlying Expiry: <span style={{ color: "#cde" }}>{selectedExpiry}</span>
-              </div>
-              <div style={{ fontSize: 11, color: "#556a84", marginTop: 4 }}>
-                Lot Size: <span style={{ color: "#cde" }}>{tradeContract.lotSize}</span>
-              </div>
-              <div style={{ fontSize: 11, color: "#556a84", marginTop: 4 }}>
-                Current LTP: <span style={{ color: "#00e5a0", fontWeight: 600 }}>{formatINR(tradeContract.ltp)}</span>
-              </div>
-            </div>
-
-            {/* Form */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {/* Buy/Sell Side Selector */}
-              <div>
-                <label style={{ display: "block", fontSize: 10, color: "#556a84", marginBottom: 6, fontWeight: 600 }}>TRANSACTION SIDE</label>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    onClick={() => setTradeContract(prev => ({ ...prev, side: "buy" }))}
-                    style={{
-                      flex: 1, padding: "8px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer",
-                      background: tradeContract.side === "buy" ? "#0f2a24" : "#050b12",
-                      color: tradeContract.side === "buy" ? "#4ade80" : "#556a84",
-                      border: `1px solid ${tradeContract.side === "buy" ? "#4ade8055" : "#142234"}`
-                    }}
-                  >
-                    BUY (Long)
-                  </button>
-                  <button
-                    onClick={() => setTradeContract(prev => ({ ...prev, side: "sell" }))}
-                    style={{
-                      flex: 1, padding: "8px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer",
-                      background: tradeContract.side === "sell" ? "#2a1218" : "#050b12",
-                      color: tradeContract.side === "sell" ? "#f87171" : "#556a84",
-                      border: `1px solid ${tradeContract.side === "sell" ? "#f8717155" : "#142234"}`
-                    }}
-                  >
-                    SELL (Short)
-                  </button>
-                </div>
-              </div>
-
-              {/* Quantity input */}
-              <div>
-                <label style={{ display: "block", fontSize: 10, color: "#556a84", marginBottom: 6, fontWeight: 600 }}>QUANTITY TO TRADE (LOT MULTIPLE)</label>
-                <input
-                  type="number" min={tradeContract.lotSize} step={tradeContract.lotSize} value={tradeAmount} onChange={(e) => setTradeAmount(e.target.value)}
-                  placeholder={`E.g. ${tradeContract.lotSize}, ${tradeContract.lotSize * 2}, etc.`}
-                  style={{
-                    width: "100%", background: isLight
-                      ? "rgba(255,255,255,.5)"
-                      : "#050b12",
-
-                    color: isLight
-                      ? "#111827"
-                      : "#cde",border: "1px solid #142234",
-                    borderRadius: 8, padding: "10px 12px",
-                    fontSize: 12, outline: "none"
-                  }}
-                />
-              </div>
-
-              {/* Execution Price input */}
-              <div>
-                <label style={{ display: "block", fontSize: 10, color: "#556a84", marginBottom: 6, fontWeight: 600 }}>EXECUTION PRICE (INR)</label>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <input
-                    type="number" min="0" step="0.01" value={tradePrice} onChange={(e) => setTradePrice(e.target.value)}
-                    placeholder="Premium Price"
-                    style={{
-                      flex: 1, background: isLight
-                        ? "rgba(255,255,255,.5)"
-                        : "#050b12",
-
-                      color: isLight
-                        ? "#111827"
-                        : "#cde", border: "1px solid #142234",
-                      borderRadius: 8, padding: "10px 12px",
-                      fontSize: 12, outline: "none"
-                    }}
-                  />
-                  <button
-                    onClick={() => setTradePrice(tradeContract.ltp.toFixed(2))}
-                    style={{
-                      background: "#0a1520", color: "#9bb0c4", border: "1px solid #142234",
-                      borderRadius: 8, padding: "0 10px", fontSize: 10, cursor: "pointer"
-                    }}
-                  >
-                    Use LTP
-                  </button>
-                </div>
-              </div>
-
-              {/* Premium calculation */}
-              {tradeAmount && tradePrice && (
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#9bb0c4", marginTop: 4 }}>
-                  <span>Est. Premium Cost:</span>
-                  <span style={{ color: "#9fe7ff", fontWeight: 600 }}>
-                    {formatINR(Number(tradeAmount) * Number(tradePrice))}
-                  </span>
-                </div>
-              )}
-
-              {/* Balance view */}
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#556a84", marginTop: 4 }}>
-                <span>Wallet Balance:</span>
-                <span style={{ color: "#00e5a0", fontWeight: 600 }}>{formatINR(paper.cash_balance)}</span>
-              </div>
-
-              <div style={{ borderTop: "1px solid #142234", margin: "8px 0" }} />
-
-              {/* Submit */}
-              <button
-                onClick={handlePlaceOrder} disabled={paperBusy || !tradeAmount || !tradePrice}
-                style={{
-                  width: "100%", borderRadius: 8, padding: "10px 14px", fontSize: 12, fontWeight: 700,
-                  cursor: (paperBusy || !tradeAmount || !tradePrice) ? "not-allowed" : "pointer",
-                  background: tradeContract.side === "buy" ? "#0f2a24" : "#2a1218",
-                  color: tradeContract.side === "buy" ? "#4ade80" : "#f87171",
-                  border: `1px solid ${tradeContract.side === "buy" ? "#4ade8055" : "#f8717155"}`,
-                  opacity: (paperBusy || !tradeAmount || !tradePrice) ? 0.5 : 1
-                }}
-              >
-                {paperBusy ? "PROCESSING..." : `CONFIRM ${tradeContract.side.toUpperCase()} ORDER`}
-              </button>
-
-              {tradeNotice && (
-                <div style={{
-                  marginTop: 10, padding: "8px 12px", borderRadius: 6, fontSize: 11, textAlign: "center",
-                  background: "#051612", color: "#7cfccf", border: "1px solid #00e5a033"
-                }}>
-                  {tradeNotice}
-                </div>
-              )}
-            </div>
+            {tradeWidgetContent}
           </div>
         )}
       </div>
+
+      {/* Mobile Quick Trade panel Bottom Sheet */}
+      {tradeContract && isMobile && (
+        <div style={mobileOverlayStyle} onClick={() => setTradeContract(null)}>
+          <div style={mobilePanelStyle} onClick={(e) => e.stopPropagation()}>
+            {tradeWidgetContent}
+          </div>
+        </div>
+      )}
+
+      {/* Slide up animation styling */}
+      <style>{`
+        @keyframes slideUp {
+          from { transform: translateY(100%); }
+          to { transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }
