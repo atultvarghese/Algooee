@@ -54,7 +54,13 @@ export default function StockCard({ ticker, selected, data, onClick, onRemove, n
       </div>
       <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 18, color: "#e8f4ff", fontWeight: 700 }}>{formatINR(displayLast)}</span>
-        <span style={{ fontSize: 12, color: up ? "#4ade80" : "#f87171", fontWeight: 600 }}>{up ? "▲" : "▼"} {Math.abs(data?.changePct ?? 0)}%</span>
+        {data?.changePct !== null && data?.changePct !== undefined ? (
+          <span style={{ fontSize: 12, color: up ? "#4ade80" : "#f87171", fontWeight: 600 }}>
+            {up ? "▲" : "▼"} {Math.abs(data.changePct)}%
+          </span>
+        ) : (
+          <span style={{ fontSize: 12, color: "#556677" }}>—</span>
+        )}
       </div>
     </div>
   );
