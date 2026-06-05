@@ -36,17 +36,12 @@ import OptionsChainView from "./components/OptionsChainView";
 import LoginView from "./components/LoginView";
 import UserManagementView from "./components/UserManagementView";
 
-function DashboardContent({ currentUser, onLogout }) {
+function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
   const [activePage, setActivePage] = useState("stock");
   const [optionUnderlying, setOptionUnderlying] = useState("NIFTY");
   const [selectedOptionContract, setSelectedOptionContract] = useState(null);
   const [showWatchlist, setShowWatchlist] = useState(window.innerWidth <= 768);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  const [themeMode, setThemeMode] = useState(localStorage.getItem("theme") || "dark");
-
-  useEffect(() => {
-    localStorage.setItem("theme", themeMode);
-  }, [themeMode]);
 
   const theme = themeMode === "dark"
     ? {
@@ -1805,6 +1800,12 @@ function DashboardContent({ currentUser, onLogout }) {
 export default function StockDashboard() {
   const [currentUser, setCurrentUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [themeMode, setThemeMode] = useState(localStorage.getItem("theme") || "dark");
+
+  useEffect(() => {
+    localStorage.setItem("theme", themeMode);
+    document.body.style.background = themeMode === "dark" ? "#060e17" : "linear-gradient(135deg, #eef4ff 0%, #f7f9fc 50%, #eef8ff 100%)";
+  }, [themeMode]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -1847,11 +1848,11 @@ export default function StockDashboard() {
         body {
           margin: 0;
           padding: 0;
-          background: #060e17;
+          background: ${themeMode === "dark" ? "#060e17" : "linear-gradient(135deg, #eef4ff 0%, #f7f9fc 50%, #eef8ff 100%)"};
         }
         ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: #07101a; }
-        ::-webkit-scrollbar-thumb { background: #1a2a3a; border-radius: 2px; }
+        ::-webkit-scrollbar-track { background: ${themeMode === "dark" ? "#07101a" : "rgba(0, 0, 0, 0.05)"}; }
+        ::-webkit-scrollbar-thumb { background: ${themeMode === "dark" ? "#1a2a3a" : "rgba(0, 0, 0, 0.15)"}; border-radius: 2px; }
         @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
         @keyframes spin {
           0% { transform: rotate(0deg); }
@@ -1860,15 +1861,15 @@ export default function StockDashboard() {
       `}</style>
       {authLoading ? (
         <div style={{
-          minHeight: "100vh", background: "#060e17", color: "#cde",
+          minHeight: "100vh", background: themeMode === "dark" ? "#060e17" : "linear-gradient(135deg, #eef4ff 0%, #f7f9fc 50%, #eef8ff 100%)", color: themeMode === "dark" ? "#cde" : "#111827",
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           fontFamily: "'DM Sans', sans-serif", gap: 16
         }}>
           <div style={{
             width: 44,
             height: 44,
-            border: "3px solid rgba(0, 229, 160, 0.15)",
-            borderTop: "3px solid #00e5a0",
+            border: themeMode === "dark" ? "3px solid rgba(0, 229, 160, 0.15)" : "3px solid rgba(16, 185, 129, 0.15)",
+            borderTop: themeMode === "dark" ? "3px solid #00e5a0" : "3px solid #10b981",
             borderRadius: "50%",
             animation: "spin 1s linear infinite"
           }} />
@@ -1877,12 +1878,22 @@ export default function StockDashboard() {
           </div>
         </div>
       ) : !currentUser ? (
-        <LoginView API_BASE={API_BASE} onLoginSuccess={(token, user) => {
-          localStorage.setItem("token", token);
-          setCurrentUser(user);
-        }} />
+        <LoginView 
+          API_BASE={API_BASE} 
+          themeMode={themeMode}
+          setThemeMode={setThemeMode}
+          onLoginSuccess={(token, user) => {
+            localStorage.setItem("token", token);
+            setCurrentUser(user);
+          }} 
+        />
       ) : (
-        <DashboardContent currentUser={currentUser} onLogout={handleLogout} />
+        <DashboardContent 
+          currentUser={currentUser} 
+          onLogout={handleLogout} 
+          themeMode={themeMode}
+          setThemeMode={setThemeMode}
+        />
       )}
     </>
   );
