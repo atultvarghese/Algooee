@@ -98,10 +98,8 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
   const [adminMobileTab, setAdminMobileTab] = useState("holdings");
 
   // Upstox Live Search UI States
-  const [liveQuery, setLiveQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
 
   // Connect Hooks
   const {
@@ -139,24 +137,17 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
     if (success) setTradeAmount("");
   };
 
-  const handleSelectSuggestion = async (suggestion) => {
-    setLiveQuery("");
-    setSearchResults([]);
-    setShowDropdown(false);
-    await addWatchlistStock(suggestion.isin, suggestion.name);
-  };
-
   useEffect(() => {
-    if (!liveQuery.trim()) {
+    const queryStr = (stockSearch || "").trim();
+    if (!queryStr) {
       setSearchResults([]);
-      setShowDropdown(false);
       return;
     }
 
     const timer = setTimeout(() => {
       setSearchLoading(true);
       const token = localStorage.getItem("token");
-      fetch(`${API_BASE}/api/instruments/search?q=${encodeURIComponent(liveQuery)}`, {
+      fetch(`${API_BASE}/api/instruments/search?q=${encodeURIComponent(queryStr)}`, {
         headers: {
           ...(token ? { "Authorization": `Bearer ${token}` } : {})
         }
@@ -172,7 +163,6 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
         })
         .then((data) => {
           setSearchResults(data.results || []);
-          setShowDropdown(true);
         })
         .catch((err) => {
           console.error("Live search error:", err);
@@ -183,7 +173,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [liveQuery]);
+  }, [stockSearch]);
 
   const handleAddFunds = async () => {
     const success = await addPaperFunds(fundAmount);
@@ -203,7 +193,10 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
     ? watchlistSource.filter((s) => {
       const name = (s.name || "").toLowerCase();
       const ticker = (s.ticker || "").toLowerCase();
-      return name.includes(query) || ticker.includes(query);
+      // Check if this watchlist stock maps to any of the search results from the live API search
+      const matchedSearch = searchResults.find(r => (r.isin || "").toLowerCase() === ticker);
+      const tradingSymbol = matchedSearch ? (matchedSearch.trading_symbol || "").toLowerCase() : "";
+      return name.includes(query) || ticker.includes(query) || tradingSymbol.includes(query);
     })
     : watchlistSource;
 
@@ -584,92 +577,134 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
           height: isMobile ? "calc(100vh - 60px)" : "auto",
           maxHeight: "none"
         }}>
-          <div style={{ fontSize: 10, color: theme.text2, letterSpacing: 2, marginBottom: 12, paddingLeft: 4 }}>WATCHLIST</div>
-          <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 10, color: theme.text2, letterSpacing: 2, marginBottom: 12, paddingLeft: 4 }}>WATCHLIST & SEARCH</div>
+          <div style={{ marginBottom: 14, position: "relative" }}>
             <input
               id="walkthrough-search"
               type="text" value={stockSearch} onChange={(e) => setStockSearch(e.target.value)}
-              placeholder="Search by name or ISIN"
-              style={{ width: "100%", background: themeMode === "light" ? "rgba(255,255,255,0.45)" : theme.input, border: `1px solid ${theme.border}`, color: "#cde", borderRadius: 8, padding: "9px 10px", fontSize: 12, outline: "none" }}
+              placeholder="Search watchlist or type symbol to add..."
+              style={{ 
+                width: "100%", 
+                background: themeMode === "light" ? "#ffffff" : theme.input, 
+                border: `1px solid ${theme.border}`, 
+                color: themeMode === "light" ? "#111827" : "#cde", 
+                borderRadius: 8, 
+                padding: "10px 32px 10px 12px", 
+                fontSize: 12, 
+                outline: "none",
+                transition: "all 0.2s ease"
+              }}
+              onFocus={(e) => e.target.style.borderColor = themeMode === "light" ? "#10b981" : "#00e5a055"}
+              onBlur={(e) => e.target.style.borderColor = theme.border}
             />
-          </div>
-          <div style={{ ...glassCard, borderRadius: 16, padding: 10, marginBottom: 12, position: "relative" }}>
-            <div style={{ fontSize: 10, color: "#556677", marginBottom: 8, letterSpacing: 1 }}>ADD STOCK</div>
-            <div style={{ position: "relative" }}>
-              <input
-                type="text" value={liveQuery} onChange={(e) => setLiveQuery(e.target.value)}
-                placeholder="Search Live Upstox Equities..."
-                style={{ width: "100%", background: themeMode === "light" ? "rgba(255,255,255,0.45)" : theme.input, border: `1px solid ${theme.border}`, color: "#cde", borderRadius: 8, padding: "8px 10px", fontSize: 11, outline: "none" }}
-              />
-              {searchLoading && (
-                <span style={{ position: "absolute", right: 10, top: 8, fontSize: 10, color: "#556677" }}>
-                  Searching...
-                </span>
-              )}
-            </div>
-
-            {showDropdown && searchResults.length > 0 && (
-              <div style={{
-                position: "absolute", top: "100%", left: 0, right: 0,
-                background: theme.card, border: "1px solid #142234",
-                borderRadius: 8, marginTop: 4, zIndex: 50,
-                maxHeight: 180, overflowY: "auto",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
+            {searchLoading && (
+              <span style={{ 
+                position: "absolute", 
+                right: 12, 
+                top: "50%", 
+                transform: "translateY(-50%)", 
+                fontSize: 10, 
+                color: themeMode === "light" ? "#6b7280" : "#556677" 
               }}>
-                {searchResults.map((suggestion) => (
-                  <div
-                    key={suggestion.isin}
-                    onClick={() => handleSelectSuggestion(suggestion)}
-                    style={{
-                      padding: "8px 12px", cursor: "pointer",
-                      borderBottom: "1px solid #142234", fontSize: 11,
-                      display: "flex", justifyContent: "space-between", alignItems: "center"
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "#142234"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                  >
-                    <div>
-                      <div style={{ color: theme.text, fontWeight: 600 }}>{suggestion.trading_symbol}</div>
-                      <div style={{ color: "#556677", fontSize: 9 }}>{suggestion.name}</div>
-                    </div>
-                    <span style={{ color: "#00e5a0", fontSize: 9 }}>+ Add</span>
-                  </div>
+                ...
+              </span>
+            )}
+          </div>
+
+          {(stockError || stockNotice) && (
+            <div style={{ 
+              marginBottom: 12, 
+              fontSize: 10, 
+              color: stockError ? "#fca5a5" : "#7cfccf",
+              background: stockError ? "rgba(239, 68, 68, 0.1)" : "rgba(16, 185, 129, 0.1)",
+              padding: "6px 10px",
+              borderRadius: 6
+            }}>
+              {stockError || stockNotice}
+            </div>
+          )}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {/* Watchlist Section */}
+            {visibleStocks.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {visibleStocks.map(s => (
+                  <StockCard key={s.ticker} ticker={s.ticker} themeMode={themeMode} name={s.name} meta={s} selected={selected === s.ticker}
+                    data={stockData[s.ticker]} onClick={() => {
+                      setSelected(s.ticker);
+                      if (activePage === "options") {
+                        setOptionUnderlying(s.ticker);
+                      } else {
+                        setActivePage("stock");
+                        setShowWatchlist(false);
+                      }
+                    }} onRemove={() => removeWatchlistStock(s.ticker)} />
                 ))}
               </div>
             )}
 
-            {showDropdown && searchResults.length === 0 && liveQuery.trim() !== "" && !searchLoading && (
-              <div style={{
-                position: "absolute", top: "100%", left: 0, right: 0,
-                background: theme.card, border: "1px solid #142234",
-                borderRadius: 8, marginTop: 4, zIndex: 50,
-                padding: "10px", fontSize: 10, color: "#556677", textAlign: "center",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
-              }}>
-                No equities found
-              </div>
-            )}
+            {/* Non-watchlist Search Results (Add Options) */}
+            {stockSearch.trim() !== "" && (() => {
+              const watchlistIsins = new Set(watchlistSource.map(s => s.ticker));
+              const nonWatchlistResults = searchResults.filter(r => !watchlistIsins.has(r.isin));
+              
+              if (nonWatchlistResults.length === 0) return null;
 
-            {(stockError || stockNotice) && (
-              <div style={{ marginTop: 8, fontSize: 10, color: stockError ? "#fca5a5" : "#7cfccf" }}>
-                {stockError || stockNotice}
+              return (
+                <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ fontSize: 9, color: theme.text2, letterSpacing: 1.5, paddingLeft: 4, fontWeight: 700, textTransform: "uppercase" }}>ADD TO WATCHLIST</div>
+                  {nonWatchlistResults.map((item) => (
+                    <div key={item.isin} style={{
+                      background: themeMode === "light" ? "#ffffff" : "#09121c",
+                      border: `1px dashed ${theme.border}`,
+                      borderRadius: 10,
+                      padding: "12px 14px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      boxShadow: themeMode === "light" ? "0 2px 8px rgba(0,0,0,0.03)" : "none"
+                    }}>
+                      <div style={{ textAlign: "left", flex: 1, minWidth: 0, paddingRight: 8 }}>
+                        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {item.trading_symbol}
+                        </div>
+                        <div style={{ fontSize: 9, color: "#556677", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>
+                          {item.name}
+                        </div>
+                      </div>
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          await addWatchlistStock(item.isin, item.trading_symbol || item.name);
+                        }}
+                        style={{
+                          background: themeMode === "light" ? "#10b981" : "rgba(0, 229, 160, 0.15)",
+                          color: themeMode === "light" ? "#ffffff" : "#00e5a0",
+                          border: themeMode === "light" ? "none" : "1px solid rgba(0, 229, 160, 0.3)",
+                          borderRadius: 6,
+                          padding: "6px 12px",
+                          fontSize: 10,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          transition: "opacity 0.2s"
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.opacity = 0.9; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.opacity = 1; }}
+                      >
+                        + ADD
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* Empty States */}
+            {!visibleStocks.length && !searchResults.filter(r => !new Set(watchlistSource.map(s => s.ticker)).has(r.isin)).length && (
+              <div style={{ color: "#556677", fontSize: 11, padding: "12px 4px", textAlign: "center" }}>
+                {stockSearch.trim() ? "No stocks found." : "Your watchlist is empty."}
               </div>
             )}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {visibleStocks.map(s => (
-              <StockCard key={s.ticker} ticker={s.ticker} themeMode={themeMode} name={s.name} meta={s} selected={selected === s.ticker}
-                data={stockData[s.ticker]} onClick={() => {
-                  setSelected(s.ticker);
-                  if (activePage === "options") {
-                    setOptionUnderlying(s.ticker);
-                  } else {
-                    setActivePage("stock");
-                    setShowWatchlist(false);
-                  }
-                }} onRemove={() => removeWatchlistStock(s.ticker)} />
-            ))}
-            {!visibleStocks.length && <div style={{ color: "#556677", fontSize: 11, padding: "6px 4px" }}>No stocks found.</div>}
           </div>
         </div>
       )}

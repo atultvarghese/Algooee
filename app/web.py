@@ -894,13 +894,40 @@ async def search_upstox_instruments(q: str, current_user: dict = Depends(get_cur
     try:
         results = client.search_instruments(query=q, exchange="NSE", segment="EQ")
         stocks = []
+        seen_isins = set()
         for r in results:
-            if r.get("isin"):
+            isin = r.get("isin")
+            if isin and isin not in seen_isins:
+                seen_isins.add(isin)
                 stocks.append({
-                    "isin": r["isin"],
+                    "isin": isin,
                     "name": r.get("name") or r.get("trading_symbol") or "",
                     "trading_symbol": r.get("trading_symbol") or "",
                 })
+        
+        # Sort results:
+        # 1. Exact match of trading_symbol (case-insensitive)
+        # 2. Prefix match of trading_symbol
+        # 3. Substring match of trading_symbol
+        # 4. Prefix match of name
+        # 5. Everything else
+        q_lower = q.lower().strip()
+        def get_sort_key(item):
+            sym = item["trading_symbol"].lower()
+            name = item["name"].lower()
+            if sym == q_lower:
+                return (0, len(sym))
+            elif sym.startswith(q_lower):
+                return (1, len(sym))
+            elif q_lower in sym:
+                return (2, sym.find(q_lower))
+            elif name.startswith(q_lower):
+                return (3, len(name))
+            elif q_lower in name:
+                return (4, name.find(q_lower))
+            return (5, 0)
+        
+        stocks.sort(key=get_sort_key)
         return {"results": stocks}
     except Exception as e:
         raise HTTPException(
