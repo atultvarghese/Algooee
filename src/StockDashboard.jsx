@@ -440,6 +440,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
                   </button>
                 )}
                 <button
+                  id="walkthrough-tour-restart"
                   onClick={() => setShowTour(true)}
                   style={{
                     background: themeMode === "light" ? "rgba(16, 185, 129, 0.1)" : "rgba(0, 229, 160, 0.1)",
@@ -473,7 +474,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
             </div>
 
             {/* Tabs Segmented Row */}
-            <div style={{
+            <div id="walkthrough-nav-tabs" style={{
               display: "flex",
               background: themeMode === "light" ? "rgba(0,0,0,0.03)" : "rgba(255,255,255,0.02)",
               border: `1px solid ${theme.border}`,
@@ -481,13 +482,14 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
               padding: 2
             }}>
               {[
-                { id: "stock", label: "Stock" },
-                { id: "options", label: "Options" },
-                { id: "admin", label: "Admin" },
-                ...(currentUser?.role === "admin" ? [{ id: "users", label: "Users" }] : [])
+                { id: "stock", label: "Stock", tourId: "walkthrough-nav-stock" },
+                { id: "options", label: "Options", tourId: "walkthrough-nav-options" },
+                { id: "admin", label: "Admin", tourId: "walkthrough-nav-admin" },
+                ...(currentUser?.role === "admin" ? [{ id: "users", label: "Users", tourId: "walkthrough-nav-users" }] : [])
               ].map(tab => (
                 <button
                   key={tab.id}
+                  id={tab.tourId}
                   onClick={() => {
                     setActivePage(tab.id);
                     if (tab.id === "stock") setShowWatchlist(false);
@@ -826,7 +828,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
                     {adminMobileTab === "holdings" && (
                       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                         {/* Account Summary Card */}
-                        <div style={{
+                        <div id="walkthrough-admin-metrics" style={{
                           ...glassCard,
                           borderRadius: 16,
                           padding: "20px",
@@ -877,7 +879,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
                         </div>
 
                         {/* Open Positions list */}
-                        <div>
+                        <div id="walkthrough-admin-holdings">
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                             <div style={{ fontSize: 11, color: theme.text2, letterSpacing: 1, fontWeight: 700 }}>PORTFOLIO HOLDINGS</div>
                             <div style={{ fontSize: 10, color: theme.text3 }}>{(paper.positions || []).length} active positions</div>
@@ -1165,7 +1167,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
                     {adminMobileTab === "controls" && (
                       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                         {/* Admin Funding / Reset Control */}
-                        <div style={{
+                        <div id="walkthrough-admin-controls" style={{
                           ...glassCard,
                           borderRadius: 16,
                           padding: "20px"
@@ -1874,6 +1876,11 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
           themeMode={themeMode}
           activePage={activePage}
           setActivePage={setActivePage}
+          isMobile={isMobile}
+          showWatchlist={showWatchlist}
+          setShowWatchlist={setShowWatchlist}
+          adminMobileTab={adminMobileTab}
+          setAdminMobileTab={setAdminMobileTab}
           onClose={(completed) => {
             if (completed) {
               localStorage.setItem(userOnboardingKey, "true");

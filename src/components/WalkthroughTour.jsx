@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-export default function WalkthroughTour({ themeMode, activePage, setActivePage, onClose }) {
+export default function WalkthroughTour({ themeMode, activePage, setActivePage, isMobile, showWatchlist, setShowWatchlist, adminMobileTab, setAdminMobileTab, onClose }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [spotlightRect, setSpotlightRect] = useState(null);
 
@@ -109,6 +109,29 @@ export default function WalkthroughTour({ themeMode, activePage, setActivePage, 
       setActivePage(step.page);
     }
 
+    // Automatically handle mobile watchlist overlay toggle
+    if (isMobile && step.page === "stock") {
+      const needsWatchlist = step.targetId === "walkthrough-watchlist" || step.targetId === "walkthrough-search";
+      if (needsWatchlist && !showWatchlist) {
+        setShowWatchlist(true);
+      } else if (!needsWatchlist && showWatchlist) {
+        setShowWatchlist(false);
+      }
+    }
+
+    // Automatically handle mobile admin page sub-tabs
+    if (isMobile && step.page === "admin") {
+      if (step.targetId === "walkthrough-admin-controls") {
+        if (adminMobileTab !== "controls") {
+          setAdminMobileTab("controls");
+        }
+      } else if (step.targetId === "walkthrough-admin-metrics" || step.targetId === "walkthrough-admin-holdings") {
+        if (adminMobileTab !== "holdings") {
+          setAdminMobileTab("holdings");
+        }
+      }
+    }
+
     let timer;
     const updatePosition = () => {
       if (!step.targetId) {
@@ -167,7 +190,7 @@ export default function WalkthroughTour({ themeMode, activePage, setActivePage, 
       window.removeEventListener("resize", handleSync);
       window.removeEventListener("scroll", handleSync);
     };
-  }, [currentStep]);
+  }, [currentStep, activePage, showWatchlist, adminMobileTab, isMobile]);
 
   const step = steps[currentStep];
 
