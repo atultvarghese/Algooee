@@ -35,6 +35,7 @@ import StockCard from "./components/StockCard";
 import OptionsChainView from "./components/OptionsChainView";
 import LoginView from "./components/LoginView";
 import UserManagementView from "./components/UserManagementView";
+import WalkthroughTour from "./components/WalkthroughTour";
 
 function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
   const [activePage, setActivePage] = useState("stock");
@@ -42,6 +43,9 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
   const [selectedOptionContract, setSelectedOptionContract] = useState(null);
   const [showWatchlist, setShowWatchlist] = useState(window.innerWidth <= 768);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  const userOnboardingKey = `algoooeee_tour_completed_${currentUser?.id || currentUser?.email || 'guest'}`;
+  const [showTour, setShowTour] = useState(!localStorage.getItem(userOnboardingKey));
 
   const theme = themeMode === "dark"
     ? {
@@ -275,8 +279,9 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
               alignItems: "center",
               gap: 16
             }}>
-              <div style={{ display: "flex", gap: 6 }}>
+              <div id="walkthrough-nav-tabs" style={{ display: "flex", gap: 6 }}>
                 <button
+                  id="walkthrough-nav-stock"
                   onClick={() => setActivePage("stock")}
                   style={{
                     background: activePage === "stock" ? "#00e5a022" : "#0a1520",
@@ -288,6 +293,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
                   STOCK PAGE
                 </button>
                 <button
+                  id="walkthrough-nav-options"
                   onClick={() => setActivePage("options")}
                   style={{
                     background: activePage === "options" ? "#00e5a022" : "#0a1520",
@@ -299,6 +305,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
                   OPTIONS CHAIN
                 </button>
                 <button
+                  id="walkthrough-nav-admin"
                   onClick={() => setActivePage("admin")}
                   style={{
                     background: activePage === "admin" ? "#00e5a022" : "#0a1520",
@@ -368,6 +375,25 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
                   </span>
                 </div>
                 <button
+                  id="walkthrough-tour-restart"
+                  onClick={() => setShowTour(true)}
+                  style={{
+                    background: themeMode === "light" ? "rgba(16, 185, 129, 0.1)" : "rgba(0, 229, 160, 0.1)",
+                    color: themeMode === "light" ? "#10b981" : "#00e5a0",
+                    border: `1px solid ${themeMode === "light" ? "rgba(16, 185, 129, 0.3)" : "rgba(0, 229, 160, 0.3)"}`,
+                    borderRadius: 8,
+                    padding: "6px 12px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4
+                  }}
+                >
+                  <span>🚀</span> TOUR
+                </button>
+                <button
                   onClick={() => setThemeMode(themeMode === "dark" ? "light" : "dark")}
                   style={{
                     background: theme.card,
@@ -420,6 +446,18 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
                     {showWatchlist ? "DETAILS" : "WATCHLIST"}
                   </button>
                 )}
+                <button
+                  onClick={() => setShowTour(true)}
+                  style={{
+                    background: themeMode === "light" ? "rgba(16, 185, 129, 0.1)" : "rgba(0, 229, 160, 0.1)",
+                    color: themeMode === "light" ? "#10b981" : "#00e5a0",
+                    border: `1px solid ${themeMode === "light" ? "rgba(16, 185, 129, 0.3)" : "rgba(0, 229, 160, 0.3)"}`,
+                    borderRadius: 6, padding: "6px 8px", fontSize: 10, fontWeight: 700, cursor: "pointer"
+                  }}
+                  title="Take Onboarding Tour"
+                >
+                  🚀
+                </button>
                 <button
                   onClick={() => setThemeMode(themeMode === "dark" ? "light" : "dark")}
                   style={{
@@ -539,7 +577,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
 
       {/* Sidebar */}
       {((!isMobile && activePage !== "users") || (isMobile && activePage === "stock" && showWatchlist)) && (
-        <div style={{
+        <div id="walkthrough-watchlist" style={{
           borderRight: isMobile ? "none" : `1px solid ${theme.border}`,
           borderBottom: isMobile ? `1px solid ${theme.border}` : "none",
           padding: 16, overflowY: "auto", background: theme.card,
@@ -549,6 +587,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
           <div style={{ fontSize: 10, color: theme.text2, letterSpacing: 2, marginBottom: 12, paddingLeft: 4 }}>WATCHLIST</div>
           <div style={{ marginBottom: 10 }}>
             <input
+              id="walkthrough-search"
               type="text" value={stockSearch} onChange={(e) => setStockSearch(e.target.value)}
               placeholder="Search by name or ISIN"
               style={{ width: "100%", background: themeMode === "light" ? "rgba(255,255,255,0.45)" : theme.input, border: `1px solid ${theme.border}`, color: "#cde", borderRadius: 8, padding: "9px 10px", fontSize: 12, outline: "none" }}
@@ -661,20 +700,22 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
           {activePage === "users" ? (
             <UserManagementView API_BASE={API_BASE} currentUser={currentUser} />
           ) : activePage === "options" ? (
-            <OptionsChainView
-              stocks={stocks}
-              selectedUnderlying={optionUnderlying}
-              themeMode={themeMode}
-              theme={theme}
-              setSelectedUnderlying={setOptionUnderlying}
-              paper={paper}
-              paperBusy={paperBusy}
-              placePaperOrder={placePaperOrder}
-              formatINR={formatINR}
-              selectedOptionContract={selectedOptionContract}
-              setSelectedOptionContract={setSelectedOptionContract}
-              isMobile={isMobile}
-            />
+            <div id="walkthrough-options-grid">
+              <OptionsChainView
+                stocks={stocks}
+                selectedUnderlying={optionUnderlying}
+                themeMode={themeMode}
+                theme={theme}
+                setSelectedUnderlying={setOptionUnderlying}
+                paper={paper}
+                paperBusy={paperBusy}
+                placePaperOrder={placePaperOrder}
+                formatINR={formatINR}
+                selectedOptionContract={selectedOptionContract}
+                setSelectedOptionContract={setSelectedOptionContract}
+                isMobile={isMobile}
+              />
+            </div>
           ) : activePage === "admin" ? (
             paperLoading && !paperPortfolio ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "60%", minHeight: "250px", gap: 16 }}>
@@ -1159,7 +1200,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
                     {/* Left Side: Metrics & Positions */}
                     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
                       {/* Metric Cards */}
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+                      <div id="walkthrough-admin-metrics" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
                         {[
                           { label: "Cash Balance", value: formatINR(paper.cash_balance), color: "#00e5a0", desc: "Available for trading" },
                           { label: "Total Invested", value: formatINR(paper.invested_cost), color: "#9fe7ff", desc: "Capital in holdings" },
@@ -1179,7 +1220,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
                       </div>
 
                       {/* Open Positions Card */}
-                      <div style={{
+                      <div id="walkthrough-admin-holdings" style={{
                         ...glassCard,
                         borderRadius: 16,
                         padding: "20px",
@@ -1337,7 +1378,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
                     {/* Right Side: Admin Controls & Transaction Log */}
                     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
                       {/* Admin Funding / Reset Control */}
-                      <div style={{
+                      <div id="walkthrough-admin-controls" style={{
                         ...glassCard,
                         borderRadius: 16,
                         padding: "20px"
@@ -1512,7 +1553,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
               </div>
 
               {/* Paper Trade */}
-              <div style={{ ...glassCard, borderRadius: 16, padding: 18, marginBottom: 20 }}>
+              <div id="walkthrough-papertrade" style={{ ...glassCard, borderRadius: 16, padding: 18, marginBottom: 20 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                   <div style={{ fontSize: 11, color: "#667788", letterSpacing: 1 }}>PAPER TRADE · QUANTITY BASED</div>
                   <div style={{ fontSize: 12, color: "#00e5a0", fontWeight: 700 }}>Cash: {formatINR(paper.cash_balance)}</div>
@@ -1564,7 +1605,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
               </div>
 
               {/* Chart */}
-              <div style={{ ...glassCard, borderRadius: 16, padding: "20px 16px", marginBottom: 20 }}>
+              <div id="walkthrough-chart" style={{ ...glassCard, borderRadius: 16, padding: "20px 16px", marginBottom: 20 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, paddingRight: 8 }}>
                   <span style={{ fontSize: 12, color: "#667788", letterSpacing: 1 }}>
                     {data?.hasPrediction ? "LAST 10 DAYS + NEXT 1 DAY · ACTUAL & PREDICTED" : "LAST 10 DAYS · HISTORICAL PRICE"}
@@ -1792,6 +1833,19 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
             </>
           ) : null}
         </div>
+      )}
+      {showTour && (
+        <WalkthroughTour
+          themeMode={themeMode}
+          activePage={activePage}
+          setActivePage={setActivePage}
+          onClose={(completed) => {
+            if (completed) {
+              localStorage.setItem(userOnboardingKey, "true");
+            }
+            setShowTour(false);
+          }}
+        />
       )}
     </div>
   );
