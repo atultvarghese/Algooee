@@ -87,7 +87,12 @@ export default function usePaperTrade() {
       setPaperError("Enter a valid funding amount.");
       return false;
     }
+    if (amount > 10000000) {
+      setPaperError("Deposit limit is 1 Crore (₹1,00,00,000) per transaction.");
+      return false;
+    }
     setPaperBusy(true); setPaperError(""); setPaperNotice("");
+
     try {
       const res = await authFetch(`${API_BASE}/api/paper/admin/fund`, {
         method: "POST",

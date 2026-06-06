@@ -14,7 +14,6 @@ export default function AdminView({
   paperBusy,
   themeMode,
   theme,
-  glassCard,
   isMobile,
   adminMobileTab,
   setAdminMobileTab,
@@ -32,15 +31,13 @@ export default function AdminView({
   if (paperLoading && !paper) {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "60%", minHeight: "250px", gap: 16 }}>
-        <div style={{
+        <div className="spinner" style={{
           width: 40,
           height: 40,
           border: "3px solid rgba(0, 229, 160, 0.15)",
-          borderTop: "3px solid #00e5a0",
-          borderRadius: "50%",
-          animation: "spin 1s linear infinite"
+          borderTop: "3px solid #00e5a0"
         }} />
-        <div style={{ color: theme.text2, fontSize: 13, letterSpacing: 0.5, fontWeight: 500 }}>
+        <div style={{ color: "var(--theme-text2)", fontSize: 13, letterSpacing: 0.5, fontWeight: 500 }}>
           Loading paper trading account...
         </div>
       </div>
@@ -112,7 +109,7 @@ export default function AdminView({
           <div style={{
             display: "flex",
             background: themeMode === "light" ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.03)",
-            border: `1px solid ${theme.border}`,
+            border: "1px solid var(--theme-border)",
             borderRadius: 12,
             padding: 4,
             marginBottom: 8
@@ -125,19 +122,7 @@ export default function AdminView({
               <button
                 key={tab.id}
                 onClick={() => setAdminMobileTab(tab.id)}
-                style={{
-                  flex: 1,
-                  background: adminMobileTab === tab.id ? (themeMode === "light" ? "#ffffff" : "rgba(255,255,255,0.08)") : "transparent",
-                  color: adminMobileTab === tab.id ? theme.text : theme.text2,
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "10px 12px",
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                  boxShadow: adminMobileTab === tab.id && themeMode === "light" ? "0 2px 8px rgba(0,0,0,0.08)" : "none"
-                }}
+                className={`mobile-tab-btn ${adminMobileTab === tab.id ? "active" : ""}`}
               >
                 {tab.label}
               </button>
@@ -148,41 +133,40 @@ export default function AdminView({
           {adminMobileTab === "holdings" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
               {/* Account Summary Card */}
-              <div id="walkthrough-admin-metrics" style={{
-                ...glassCard,
+              <div id="walkthrough-admin-metrics" className="glass-card" style={{
                 borderRadius: 16,
                 padding: "20px",
                 background: themeMode === "light" ? "linear-gradient(135deg, #ffffff 0%, #f9fafb 100%)" : "linear-gradient(135deg, #0e1e2f 0%, #060e17 100%)",
                 boxShadow: "0 4px 20px rgba(0, 0, 0, 0.2)"
               }}>
-                <div style={{ fontSize: 10, color: theme.text2, letterSpacing: 1, fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>
+                <div style={{ fontSize: 10, color: "var(--theme-text2)", letterSpacing: 1, fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>
                   Account Net Worth
                 </div>
-                <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 24, fontWeight: 700, color: theme.text, marginBottom: 16 }}>
+                <div className="mono-font" style={{ fontSize: 24, fontWeight: 700, color: "var(--theme-text)", marginBottom: 16 }}>
                   {formatINR(paperPortfolio.cash_balance + paperPortfolio.market_value)}
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 12px", borderTop: `1px solid ${theme.border}`, paddingTop: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 12px", borderTop: "1px solid var(--theme-border)", paddingTop: 16 }}>
                   <div>
-                    <div style={{ fontSize: 9, color: theme.text2, textTransform: "uppercase", marginBottom: 2 }}>Cash Balance</div>
-                    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, color: "#00e5a0" }}>
+                    <div style={{ fontSize: 9, color: "var(--theme-text2)", textTransform: "uppercase", marginBottom: 2 }}>Cash Balance</div>
+                    <div className="mono-font" style={{ fontSize: 13, fontWeight: 700, color: "#00e5a0" }}>
                       {formatINR(paperPortfolio.cash_balance)}
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 9, color: theme.text2, textTransform: "uppercase", marginBottom: 2 }}>Total Invested</div>
-                    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, color: "#9fe7ff" }}>
+                    <div style={{ fontSize: 9, color: "var(--theme-text2)", textTransform: "uppercase", marginBottom: 2 }}>Total Invested</div>
+                    <div className="mono-font" style={{ fontSize: 13, fontWeight: 700, color: "#9fe7ff" }}>
                       {formatINR(paperPortfolio.invested_cost)}
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 9, color: theme.text2, textTransform: "uppercase", marginBottom: 2 }}>Market Value</div>
-                    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, color: "#4a9eff" }}>
+                    <div style={{ fontSize: 9, color: "var(--theme-text2)", textTransform: "uppercase", marginBottom: 2 }}>Market Value</div>
+                    <div className="mono-font" style={{ fontSize: 13, fontWeight: 700, color: "#4a9eff" }}>
                       {formatINR(paperPortfolio.market_value)}
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 9, color: theme.text2, textTransform: "uppercase", marginBottom: 2 }}>Total P&L</div>
+                    <div style={{ fontSize: 9, color: "var(--theme-text2)", textTransform: "uppercase", marginBottom: 2 }}>Total P&L</div>
                     <div style={{
                       fontFamily: "'Space Mono', monospace",
                       fontSize: 13,
@@ -201,8 +185,8 @@ export default function AdminView({
               {/* Open Positions list */}
               <div id="walkthrough-admin-holdings">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                  <div style={{ fontSize: 11, color: theme.text2, letterSpacing: 1, fontWeight: 700 }}>PORTFOLIO HOLDINGS</div>
-                  <div style={{ fontSize: 10, color: theme.text3 }}>{(paperPortfolio.positions || []).length} active positions</div>
+                  <div style={{ fontSize: 11, color: "var(--theme-text2)", letterSpacing: 1, fontWeight: 700 }}>PORTFOLIO HOLDINGS</div>
+                  <div style={{ fontSize: 10, color: "var(--theme-text3)" }}>{(paperPortfolio.positions || []).length} active positions</div>
                 </div>
 
                 {(paperPortfolio.positions || []).length ? (
@@ -214,24 +198,12 @@ export default function AdminView({
                       const dayPnlPct = pos.prev_close > 0 ? ((pos.current_price - pos.prev_close) / pos.prev_close) * 100 : 0;
 
                       return (
-                        <div
-                          key={pos.id || pos.isin}
-                          style={{
-                            background: themeMode === "light" ? "rgba(255,255,255,0.45)" : theme.card2,
-                            border: `1px solid ${theme.border}`,
-                            borderRadius: 14,
-                            padding: 16,
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 12,
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.12)"
-                          }}
-                        >
+                        <div key={pos.id || pos.isin} className="holdings-card">
                           {/* Header */}
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                             <div>
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={{ fontWeight: 700, fontSize: 13, color: theme.text }}>{pos.name}</span>
+                                <span style={{ fontWeight: 700, fontSize: 13, color: "var(--theme-text)" }}>{pos.name}</span>
                                 <span style={{
                                   fontSize: 8,
                                   background: pos.is_option ? "rgba(255,176,119,0.1)" : "rgba(0,229,160,0.1)",
@@ -244,14 +216,13 @@ export default function AdminView({
                                   {pos.is_option ? "Option" : "Equity"}
                                 </span>
                               </div>
-                              <div style={{ fontSize: 9, color: theme.text3, marginTop: 4 }}>{pos.isin}</div>
+                              <div style={{ fontSize: 9, color: "var(--theme-text3)", marginTop: 4 }}>{pos.isin}</div>
                             </div>
                             <div style={{ textAlign: "right" }}>
-                              <div style={{
+                              <div className="mono-font" style={{
                                 fontSize: 12,
                                 fontWeight: 700,
-                                color: isProfit ? "#00e5a0" : "#ef4444",
-                                fontFamily: "'Space Mono', monospace"
+                                color: isProfit ? "#00e5a0" : "#ef4444"
                               }}>
                                 {isProfit ? "▲" : "▼"} {formatINR(Math.abs(pos.unrealized_pnl))}
                               </div>
@@ -288,37 +259,36 @@ export default function AdminView({
                             display: "grid",
                             gridTemplateColumns: "repeat(3, 1fr)",
                             gap: "10px 8px",
-                            borderTop: `1px solid ${theme.border}`,
-                            borderBottom: `1px solid ${theme.border}`,
+                            borderTop: "1px solid var(--theme-border)",
+                            borderBottom: "1px solid var(--theme-border)",
                             padding: "10px 0"
                           }}>
                             <div>
-                              <div style={{ fontSize: 9, color: theme.text2, marginBottom: 2 }}>Qty</div>
-                              <div style={{ fontSize: 11, fontWeight: 700, color: theme.text, fontFamily: "'Space Mono', monospace" }}>{pos.quantity}</div>
+                              <div style={{ fontSize: 9, color: "var(--theme-text2)", marginBottom: 2 }}>Qty</div>
+                              <div className="mono-font" style={{ fontSize: 11, fontWeight: 700, color: "var(--theme-text)" }}>{pos.quantity}</div>
                             </div>
                             <div>
-                              <div style={{ fontSize: 9, color: theme.text2, marginBottom: 2 }}>Avg Cost</div>
-                              <div style={{ fontSize: 11, fontWeight: 700, color: theme.text, fontFamily: "'Space Mono', monospace" }}>{formatINR(pos.avg_price)}</div>
+                              <div style={{ fontSize: 9, color: "var(--theme-text2)", marginBottom: 2 }}>Avg Cost</div>
+                              <div className="mono-font" style={{ fontSize: 11, fontWeight: 700, color: "var(--theme-text)" }}>{formatINR(pos.avg_price)}</div>
                             </div>
                             <div>
-                              <div style={{ fontSize: 9, color: theme.text2, marginBottom: 2 }}>LTP</div>
-                              <div style={{ fontSize: 11, fontWeight: 700, color: theme.text, fontFamily: "'Space Mono', monospace" }}>{formatINR(pos.current_price)}</div>
+                              <div style={{ fontSize: 9, color: "var(--theme-text2)", marginBottom: 2 }}>LTP</div>
+                              <div className="mono-font" style={{ fontSize: 11, fontWeight: 700, color: "var(--theme-text)" }}>{formatINR(pos.current_price)}</div>
                             </div>
                             <div>
-                              <div style={{ fontSize: 9, color: theme.text2, marginBottom: 2 }}>Amt Invested</div>
-                              <div style={{ fontSize: 11, fontWeight: 600, color: theme.text2, fontFamily: "'Space Mono', monospace" }}>{formatINR(pos.cost_value)}</div>
+                              <div style={{ fontSize: 9, color: "var(--theme-text2)", marginBottom: 2 }}>Amt Invested</div>
+                              <div className="mono-font" style={{ fontSize: 11, fontWeight: 600, color: "var(--theme-text2)" }}>{formatINR(pos.cost_value)}</div>
                             </div>
                             <div>
-                              <div style={{ fontSize: 9, color: theme.text2, marginBottom: 2 }}>Market Value</div>
-                              <div style={{ fontSize: 11, fontWeight: 600, color: theme.text, fontFamily: "'Space Mono', monospace" }}>{formatINR(pos.market_value)}</div>
+                              <div style={{ fontSize: 9, color: "var(--theme-text2)", marginBottom: 2 }}>Market Value</div>
+                              <div className="mono-font" style={{ fontSize: 11, fontWeight: 600, color: "var(--theme-text)" }}>{formatINR(pos.market_value)}</div>
                             </div>
                             <div>
-                              <div style={{ fontSize: 9, color: theme.text2, marginBottom: 2 }}>Day Return</div>
-                              <div style={{
+                              <div style={{ fontSize: 9, color: "var(--theme-text2)", marginBottom: 2 }}>Day Return</div>
+                              <div className="mono-font" style={{
                                 fontSize: 11,
                                 fontWeight: 600,
-                                color: isDayProfit ? "#00e5a0" : "#ef4444",
-                                fontFamily: "'Space Mono', monospace"
+                                color: isDayProfit ? "#00e5a0" : "#ef4444"
                               }}>
                                 {isDayProfit ? "+" : ""}{dayPnlPct.toFixed(2)}%
                               </div>
@@ -327,7 +297,7 @@ export default function AdminView({
 
                           {/* Actions */}
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <div style={{ fontSize: 8, color: theme.text3, lineHeight: "1.3" }}>
+                            <div style={{ fontSize: 8, color: "var(--theme-text3)", lineHeight: "1.3" }}>
                               <div>Updated: {formatExactDateTime(pos.updated_at)}</div>
                               <div style={{ color: "#00e5a0", marginTop: 2 }}>{formatPreciseRelativeTime(pos.updated_at)}</div>
                             </div>
@@ -335,36 +305,16 @@ export default function AdminView({
                               <button
                                 onClick={() => handleBuyAction(pos)}
                                 disabled={paperBusy}
-                                style={{
-                                  background: "#0f2a24",
-                                  color: "#4ade80",
-                                  border: "1px solid #4ade8055",
-                                  borderRadius: 6,
-                                  padding: "6px 12px",
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  cursor: paperBusy ? "not-allowed" : "pointer",
-                                  opacity: paperBusy ? 0.5 : 1,
-                                  transition: "all 0.2s ease"
-                                }}
+                                className="btn-buy"
+                                style={{ padding: "6px 12px", fontSize: 10 }}
                               >
                                 BUY
                               </button>
                               <button
                                 onClick={() => handleSellAction(pos)}
                                 disabled={paperBusy}
-                                style={{
-                                  background: "#2a1218",
-                                  color: "#f87171",
-                                  border: "1px solid #f8717155",
-                                  borderRadius: 6,
-                                  padding: "6px 12px",
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  cursor: paperBusy ? "not-allowed" : "pointer",
-                                  opacity: paperBusy ? 0.5 : 1,
-                                  transition: "all 0.2s ease"
-                                }}
+                                className="btn-sell"
+                                style={{ padding: "6px 12px", fontSize: 10 }}
                               >
                                 SELL
                               </button>
@@ -377,8 +327,8 @@ export default function AdminView({
                 ) : (
                   <div style={{
                     textAlign: "center", padding: "40px 20px",
-                    border: `1px dashed ${theme.border}`, borderRadius: 12,
-                    color: theme.text2, fontSize: 12
+                    border: "1px dashed var(--theme-border)", borderRadius: 12,
+                    color: "var(--theme-text2)", fontSize: 12
                   }}>
                     No open holdings in your paper portfolio yet. Go to Stock Page to Buy stocks.
                   </div>
@@ -388,14 +338,13 @@ export default function AdminView({
           )}
 
           {adminMobileTab === "trades" && (
-            <div style={{
-              ...glassCard,
+            <div className="glass-card" style={{
               borderRadius: 16,
               padding: "20px"
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <div style={{ fontSize: 12, color: "#9bb0c4", letterSpacing: 1, fontWeight: 700 }}>RECENT TRANSACTION LOG</div>
-                <span style={{ fontSize: 9, color: theme.text3 }}>Last 15 trades</span>
+                <span style={{ fontSize: 9, color: "var(--theme-text3)" }}>Last 15 trades</span>
               </div>
 
               {(paperPortfolio.trades || []).length ? (
@@ -403,7 +352,7 @@ export default function AdminView({
                   {(paperPortfolio.trades || []).slice(0, 15).map((trade) => (
                     <div key={trade.id} style={{
                       background: themeMode === "light" ? "rgba(0,0,0,0.02)" : "rgba(255,255,255,0.01)",
-                      border: `1px solid ${theme.border}`,
+                      border: "1px solid var(--theme-border)",
                       borderRadius: 10,
                       padding: 12,
                       display: "flex",
@@ -421,11 +370,11 @@ export default function AdminView({
                           }}>
                             {trade.side}
                           </span>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: theme.text }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--theme-text)" }}>
                             {trade.name || trade.isin}
                           </span>
                         </div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: theme.text, fontFamily: "'Space Mono', monospace" }}>
+                        <div className="mono-font" style={{ fontSize: 12, fontWeight: 700, color: "var(--theme-text)" }}>
                           {formatINR(trade.gross_value)}
                         </div>
                       </div>
@@ -436,9 +385,9 @@ export default function AdminView({
                         </div>
                       )}
 
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10, color: theme.text2, borderTop: `1px solid ${theme.border}`, paddingTop: 6 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10, color: "var(--theme-text2)", borderTop: "1px solid var(--theme-border)", paddingTop: 6 }}>
                         <div>Qty: {roundQty(trade.quantity)} @ {formatINR(trade.price)}</div>
-                        <div style={{ fontSize: 8, color: theme.text3 }}>
+                        <div style={{ fontSize: 8, color: "var(--theme-text3)" }}>
                           {formatExactDateTime(trade.created_at)}
                         </div>
                       </div>
@@ -446,7 +395,7 @@ export default function AdminView({
                   ))}
                 </div>
               ) : (
-                <div style={{ textAlign: "center", padding: "40px 20px", color: theme.text2, fontSize: 11 }}>
+                <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--theme-text2)", fontSize: 11 }}>
                   No trades logged yet.
                 </div>
               )}
@@ -456,8 +405,7 @@ export default function AdminView({
           {adminMobileTab === "controls" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {/* Admin Funding / Reset Control */}
-              <div id="walkthrough-admin-controls" style={{
-                ...glassCard,
+              <div id="walkthrough-admin-controls" className="glass-card" style={{
                 borderRadius: 16,
                 padding: "20px"
               }}>
@@ -465,53 +413,39 @@ export default function AdminView({
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <div>
-                    <label style={{ display: "block", fontSize: 10, color: theme.text2, marginBottom: 6, fontWeight: 600 }}>ADD FUNDS (INR)</label>
+                    <label style={{ display: "block", fontSize: 10, color: "var(--theme-text2)", marginBottom: 6, fontWeight: 600 }}>ADD FUNDS (INR)</label>
                     <input
-                      type="number" min="0" step="0.01" value={fundAmount} onChange={(e) => setFundAmount(e.target.value)}
+                      type="number" min="0" max="10000000" step="0.01" value={fundAmount} onChange={(e) => setFundAmount(e.target.value)}
                       placeholder="Amount in INR (e.g. 50000)"
-                      style={{
-                        width: "100%", background: themeMode === "light" ? "#fff" : "#050b12", border: `1px solid ${theme.border}`,
-                        color: theme.text, borderRadius: 8, padding: "10px 12px",
-                        fontSize: 12, outline: "none"
-                      }}
+                      className="theme-input"
                     />
                   </div>
 
                   <button
                     onClick={handleAddFunds} disabled={paperBusy}
-                    style={{
-                      width: "100%", background: "#00e5a022", color: "#00e5a0",
-                      border: "1px solid #00e5a055", borderRadius: 8,
-                      padding: "10px 14px", fontSize: 12, fontWeight: 700,
-                      cursor: paperBusy ? "not-allowed" : "pointer", opacity: paperBusy ? 0.6 : 1
-                    }}
+                    className="btn-action"
                   >
                     {paperBusy ? "PROCESSING..." : "DEPOSIT FUNDS"}
                   </button>
 
-                  <div style={{ borderTop: `1px solid ${theme.border}`, margin: "8px 0" }} />
+                  <div style={{ borderTop: "1px solid var(--theme-border)", margin: "8px 0" }} />
 
                   <button
                     onClick={resetPaperAccount} disabled={paperBusy}
-                    style={{
-                      width: "100%", background: "#ef444415", color: "#fca5a5",
-                      border: "1px solid #ef444455", borderRadius: 8,
-                      padding: "10px 14px", fontSize: 12, fontWeight: 700,
-                      cursor: paperBusy ? "not-allowed" : "pointer", opacity: paperBusy ? 0.6 : 1
-                    }}
+                    className="btn-reset"
                   >
                     RESET ACCOUNT (0 CASH)
                   </button>
                 </div>
 
-                <div style={{ marginTop: 16, fontSize: 10, color: theme.text2, lineHeight: "1.4", borderTop: `1px solid ${theme.border}`, paddingTop: 12 }}>
+                <div style={{ marginTop: 16, fontSize: 10, color: "var(--theme-text2)", lineHeight: "1.4", borderTop: "1px solid var(--theme-border)", paddingTop: 12 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                     <span>Total funded so far:</span>
-                    <span style={{ color: theme.text, fontFamily: "'Space Mono', monospace", fontWeight: 600 }}>{formatINR(paperPortfolio.total_funded)}</span>
+                    <span className="mono-font" style={{ color: "var(--theme-text)", fontWeight: 600 }}>{formatINR(paperPortfolio.total_funded)}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span>P/L vs funded:</span>
-                    <span style={{ color: (paperPortfolio.pnl_vs_funded ?? 0) >= 0 ? "#00e5a0" : "#ef4444", fontFamily: "'Space Mono', monospace", fontWeight: 600 }}>
+                    <span className="mono-font" style={{ color: (paperPortfolio.pnl_vs_funded ?? 0) >= 0 ? "#00e5a0" : "#ef4444", fontWeight: 600 }}>
                       {formatINR(paperPortfolio.pnl_vs_funded)}
                     </span>
                   </div>
@@ -533,21 +467,19 @@ export default function AdminView({
                 { label: "Market Value", value: formatINR(paperPortfolio.market_value), color: "#4a9eff", desc: "Current holdings value" },
                 { label: "Total Profit / Loss", value: formatINR(paperPortfolio.total_pnl), color: (paperPortfolio.total_pnl ?? 0) >= 0 ? "#00e5a0" : "#ef4444", desc: "Unrealized P/L of open positions" },
               ].map((item) => (
-                <div key={item.label} style={{
-                  ...glassCard,
+                <div key={item.label} className="glass-card" style={{
                   borderRadius: 16,
                   padding: "16px"
                 }}>
                   <div style={{ fontSize: 10, color: "#556a84", letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 6 }}>{item.label}</div>
-                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: item.color, marginBottom: 4 }}>{item.value}</div>
+                  <div className="mono-font" style={{ fontSize: 15, fontWeight: 700, color: item.color, marginBottom: 4 }}>{item.value}</div>
                   <div style={{ fontSize: 10, color: "#3a4e68" }}>{item.desc}</div>
                 </div>
               ))}
             </div>
 
             {/* Open Positions Card */}
-            <div id="walkthrough-admin-holdings" style={{
-              ...glassCard,
+            <div id="walkthrough-admin-holdings" className="glass-card" style={{
               borderRadius: 16,
               padding: "20px",
               boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
@@ -579,15 +511,15 @@ export default function AdminView({
                         display: "grid",
                         gridTemplateColumns: "1.3fr 1.1fr 1.0fr 0.9fr 1.0fr 1.2fr 0.9fr",
                         borderTop: "1px solid #142234", fontSize: 12,
-                        background: theme.card, color: "#cde",
+                        background: "var(--theme-card)", color: "#cde",
                         alignItems: "center"
                       }}>
                         <div style={{ padding: "12px 14px" }}>
-                          <div style={{ fontWeight: 600, color: theme.text }}>{pos.name}</div>
+                          <div style={{ fontWeight: 600, color: "var(--theme-text)" }}>{pos.name}</div>
                           <div style={{ fontSize: 9, color: "#556a84", marginTop: 2, display: "flex", flexDirection: "column", gap: 2 }}>
                             {pos.is_option && pos.expiry ? (
                               <>
-                                <span style={{ color: theme.text2 }}>Expiry: <span style={{ color: "#cde" }}>{pos.expiry}</span></span>
+                                <span style={{ color: "var(--theme-text2)" }}>Expiry: <span style={{ color: "#cde" }}>{pos.expiry}</span></span>
                                 <span style={{ color: "#ffb077", fontWeight: 500 }}>({getDaysRemaining(pos.expiry)})</span>
                               </>
                             ) : (
@@ -595,61 +527,40 @@ export default function AdminView({
                             )}
                           </div>
                         </div>
-                        <div style={{ padding: "12px 14px", fontFamily: "'Space Mono', monospace", color: "#9bb0c4" }}>
+                        <div className="mono-font" style={{ padding: "12px 14px", color: "#9bb0c4" }}>
                           {formatINR(pos.cost_value)}
                         </div>
-                        <div style={{ padding: "12px 14px", fontFamily: "'Space Mono', monospace", color: "#9bb0c4" }}>
+                        <div className="mono-font" style={{ padding: "12px 14px", color: "#9bb0c4" }}>
                           {formatINR(pos.avg_price)}
                         </div>
-                        <div style={{ padding: "12px 14px", fontFamily: "'Space Mono', monospace", color: theme.text }}>
+                        <div className="mono-font" style={{ padding: "12px 14px", color: "var(--theme-text)" }}>
                           {formatINR(pos.current_price)}
                         </div>
-                        <div style={{
+                        <div className="mono-font" style={{
                           padding: "12px 14px",
-                          fontFamily: "'Space Mono', monospace",
                           color: (pos.unrealized_pnl ?? 0) >= 0 ? "#00e5a0" : "#ef4444",
                           fontWeight: 600
                         }}>
                           {formatINR(pos.unrealized_pnl)}
                         </div>
                         <div style={{ padding: "12px 14px", color: "#9bb0c4" }}>
-                          <div style={{ color: theme.text, fontFamily: "'Space Mono', monospace" }}>{formatExactDateTime(pos.updated_at)}</div>
+                          <div className="mono-font" style={{ color: "var(--theme-text)" }}>{formatExactDateTime(pos.updated_at)}</div>
                           <div style={{ fontSize: 10, color: "#00e5a0", marginTop: 2 }}>{formatPreciseRelativeTime(pos.updated_at)}</div>
                         </div>
                         <div style={{ padding: "8px 6px", display: "flex", gap: "4px", justifyContent: "center" }}>
                           <button
                             onClick={() => handleBuyAction(pos)}
                             disabled={paperBusy}
-                            style={{
-                              background: "#0f2a24",
-                              color: "#4ade80",
-                              border: "1px solid #4ade8055",
-                              borderRadius: 6,
-                              padding: "6px 8px",
-                              fontSize: 10,
-                              fontWeight: 700,
-                              cursor: paperBusy ? "not-allowed" : "pointer",
-                              opacity: paperBusy ? 0.5 : 1,
-                              transition: "all 0.2s ease"
-                            }}
+                            className="btn-buy"
+                            style={{ padding: "6px 8px", fontSize: 10 }}
                           >
                             BUY
                           </button>
                           <button
                             onClick={() => handleSellAction(pos)}
                             disabled={paperBusy}
-                            style={{
-                              background: "#2a1218",
-                              color: "#f87171",
-                              border: "1px solid #f8717155",
-                              borderRadius: 6,
-                              padding: "6px 8px",
-                              fontSize: 10,
-                              fontWeight: 700,
-                              cursor: paperBusy ? "not-allowed" : "pointer",
-                              opacity: paperBusy ? 0.5 : 1,
-                              transition: "all 0.2s ease"
-                            }}
+                            className="btn-sell"
+                            style={{ padding: "6px 8px", fontSize: 10 }}
                           >
                             SELL
                           </button>
@@ -673,8 +584,7 @@ export default function AdminView({
           {/* Right Side: Admin Controls & Transaction Log */}
           <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
             {/* Admin Funding / Reset Control */}
-            <div id="walkthrough-admin-controls" style={{
-              ...glassCard,
+            <div id="walkthrough-admin-controls" className="glass-card" style={{
               borderRadius: 16,
               padding: "20px"
             }}>
@@ -684,24 +594,15 @@ export default function AdminView({
                 <div>
                   <label style={{ display: "block", fontSize: 10, color: "#556a84", marginBottom: 6, fontWeight: 600 }}>ADD FUNDS (INR)</label>
                   <input
-                    type="number" min="0" step="0.01" value={fundAmount} onChange={(e) => setFundAmount(e.target.value)}
+                    type="number" min="0" max="10000000" step="0.01" value={fundAmount} onChange={(e) => setFundAmount(e.target.value)}
                     placeholder="Amount in INR (e.g. 50000)"
-                    style={{
-                      width: "100%", background: "#050b12", border: "1px solid #142234",
-                      color: "#cde", borderRadius: 8, padding: "10px 12px",
-                      fontSize: 12, outline: "none"
-                    }}
+                    className="theme-input"
                   />
                 </div>
 
                 <button
                   onClick={handleAddFunds} disabled={paperBusy}
-                  style={{
-                    width: "100%", background: "#00e5a022", color: "#00e5a0",
-                    border: "1px solid #00e5a055", borderRadius: 8,
-                    padding: "10px 14px", fontSize: 12, fontWeight: 700,
-                    cursor: paperBusy ? "not-allowed" : "pointer", opacity: paperBusy ? 0.6 : 1
-                  }}
+                  className="btn-action"
                 >
                   {paperBusy ? "PROCESSING..." : "DEPOSIT FUNDS"}
                 </button>
@@ -710,26 +611,20 @@ export default function AdminView({
 
                 <button
                   onClick={resetPaperAccount} disabled={paperBusy}
-                  style={{
-                    width: "100%", background: "#ef444415", color: "#fca5a5",
-                    border: "1px solid #ef444455", borderRadius: 8,
-                    padding: "10px 14px", fontSize: 12, fontWeight: 700,
-                    cursor: paperBusy ? "not-allowed" : "pointer", opacity: paperBusy ? 0.6 : 1
-                  }}
+                  className="btn-reset"
                 >
                   RESET ACCOUNT (0 CASH)
                 </button>
               </div>
 
               <div style={{ marginTop: 14, fontSize: 10, color: "#556a84", lineHeight: "1.4" }}>
-                Total funded so far: <span style={{ color: theme.text, fontFamily: "'Space Mono', monospace" }}>{formatINR(paperPortfolio.total_funded)}</span><br />
-                P/L vs funded: <span style={{ color: (paperPortfolio.pnl_vs_funded ?? 0) >= 0 ? "#00e5a0" : "#ef4444", fontFamily: "'Space Mono', monospace", fontWeight: 600 }}>{formatINR(paperPortfolio.pnl_vs_funded)}</span>
+                Total funded so far: <span className="mono-font" style={{ color: "var(--theme-text)" }}>{formatINR(paperPortfolio.total_funded)}</span><br />
+                P/L vs funded: <span className="mono-font" style={{ color: (paperPortfolio.pnl_vs_funded ?? 0) >= 0 ? "#00e5a0" : "#ef4444", fontWeight: 600 }}>{formatINR(paperPortfolio.pnl_vs_funded)}</span>
               </div>
             </div>
 
             {/* Unified Activity Log (Cleaned up trades / ledger) */}
-            <div style={{
-              ...glassCard,
+            <div className="glass-card" style={{
               borderRadius: 16,
               padding: "20px"
             }}>
@@ -746,7 +641,7 @@ export default function AdminView({
                       display: "grid", gridTemplateColumns: "1fr auto", gap: "4px"
                     }}>
                       <div>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: theme.text }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--theme-text)" }}>
                           <span style={{
                             color: trade.side === "buy" ? "#00e5a0" : "#ef4444",
                             marginRight: 6, textTransform: "uppercase", fontSize: 9, fontWeight: 800,
@@ -760,7 +655,7 @@ export default function AdminView({
                         <div style={{ fontSize: 9, color: "#556a84", marginTop: 4 }}>
                           {trade.is_option && trade.expiry ? (
                             <div style={{ marginBottom: 4 }}>
-                              <span style={{ color: theme.text2 }}>Expiry: <span style={{ color: "#cde" }}>{trade.expiry}</span></span>
+                              <span style={{ color: "var(--theme-text2)" }}>Expiry: <span style={{ color: "#cde" }}>{trade.expiry}</span></span>
                               <span style={{ color: "#ffb077", marginLeft: 4 }}>({getDaysRemaining(trade.expiry)})</span>
                             </div>
                           ) : null}
@@ -768,7 +663,7 @@ export default function AdminView({
                         </div>
                       </div>
                       <div style={{ textAlign: "right" }}>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: "#cde", fontFamily: "'Space Mono', monospace" }}>
+                        <div className="mono-font" style={{ fontSize: 11, fontWeight: 600, color: "#cde" }}>
                           {formatINR(trade.gross_value)}
                         </div>
                         <div style={{ fontSize: 9, color: "#556a84", marginTop: 4 }}>
