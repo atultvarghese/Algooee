@@ -488,9 +488,9 @@ export default function OptionsChainView({
               </div>
             </div>
             <div style={{ textAlign: isMobile ? "left" : "right", flex: isMobile ? "1 1 40%" : "auto" }}>
-              <div style={{ fontSize: 10, color: "#556a84", letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>Call / Put OI</div>
+              <div style={{ fontSize: 10, color: "#556a84", letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>Put / Call OI</div>
               <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, fontWeight: 600, color: "#cde", marginTop: 6 }}>
-                {(totalCallOI / 100000).toFixed(1)}L / {(totalPutOI / 100000).toFixed(1)}L
+                {(totalPutOI / 100000).toFixed(1)}L / {(totalCallOI / 100000).toFixed(1)}L
               </div>
             </div>
           </div>

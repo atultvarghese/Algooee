@@ -76,7 +76,7 @@ export default function WalkthroughTour({ themeMode, activePage, setActivePage, 
     {
       targetId: "walkthrough-admin-controls",
       title: "Account Controls",
-      content: "Simulate depositing mock cash to add funds or completely reset your virtual account ledger to start over.",
+      content: "Simulate depositing mock cash (Dummy virtual money) to add funds or completely reset your virtual account ledger to start over.",
       page: "admin"
     },
     {

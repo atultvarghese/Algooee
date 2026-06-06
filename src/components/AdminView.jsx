@@ -413,7 +413,7 @@ export default function AdminView({
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <div>
-                    <label style={{ display: "block", fontSize: 10, color: "var(--theme-text2)", marginBottom: 6, fontWeight: 600 }}>ADD FUNDS (INR)</label>
+                    <label style={{ display: "block", fontSize: 10, color: "var(--theme-text2)", marginBottom: 6, fontWeight: 600 }}>ADD VIRTUAL FUNDS (DUMMY)</label>
                     <input
                       type="number" min="0" max="10000000" step="0.01" value={fundAmount} onChange={(e) => setFundAmount(e.target.value)}
                       placeholder="Amount in INR (e.g. 50000)"
