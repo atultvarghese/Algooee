@@ -130,3 +130,20 @@ export function formatPreciseRelativeTime(dateStr) {
     return String(dateStr);
   }
 }
+
+export function getDaysRemaining(expiryDateStr) {
+  if (!expiryDateStr) return "";
+  const expiry = new Date(expiryDateStr);
+  const today = new Date();
+
+  expiry.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+
+  const diffTime = expiry - today;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) return "Expired";
+  if (diffDays === 0) return "Expires today";
+  if (diffDays === 1) return "1 day remaining";
+  return `${diffDays} days remaining`;
+}
