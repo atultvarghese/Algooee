@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { themes } from "./theme";
+import { themes, applyTheme } from "./utils/theme";
+
 
 // Hooks & Utils
 import useStocks from "./hooks/useStocks";
@@ -29,27 +30,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
   const userOnboardingKey = `algoooeee_tour_completed_${currentUser?.id || currentUser?.email || 'guest'}`;
   const [showTour, setShowTour] = useState(!localStorage.getItem(userOnboardingKey));
 
-  const theme = themeMode === "dark"
-    ? {
-      bg: "#060e17",
-      card: "#07101a",
-      card2: "#0a1520",
-      input: "#060e17",
-      border: "#1a2a3a",
-      text: "#cde",
-      text2: "#8899aa",
-      text3: "#667788"
-    }
-    : {
-      bg: "#f5f7fb",
-      card: "#ffffff",
-      card2: "#ffffff",
-      input: "#ffffff",
-      border: "#dbe3ee",
-      text: "#111827",
-      text2: "#6b7280",
-      text3: "#94a3b8"
-    };
+  const theme = themes[themeMode];
 
   const glassCard =
     themeMode === "light"
@@ -209,7 +190,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
 
   return (
     <div style={{
-      minHeight: "100vh", background: theme.bg, color: theme.text, fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
+      minHeight: "100vh", background: "var(--theme-bg)", color: "var(--theme-text)", fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
       display: "grid", gridTemplateColumns: (isMobile || activePage === "users") ? "1fr" : "280px 1fr", gridTemplateRows: isMobile ? "auto auto 1fr" : "60px 1fr"
     }}>
       {/* Header */}
@@ -225,6 +206,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
         setShowWatchlist={setShowWatchlist}
         setShowTour={setShowTour}
         cashBalance={paper.cash_balance}
+        setAdminMobileTab={setAdminMobileTab}
         theme={theme}
       />
 
@@ -385,7 +367,10 @@ export default function StockDashboard() {
 
   useEffect(() => {
     localStorage.setItem("theme", themeMode);
-    document.body.style.background = themeMode === "dark" ? "#060e17" : "linear-gradient(135deg, #eef4ff 0%, #f7f9fc 50%, #eef8ff 100%)";
+    applyTheme(themeMode);
+    document.body.style.background = themeMode === "dark" 
+      ? "#060e17" 
+      : "linear-gradient(135deg, #eef4ff 0%, #f7f9fc 50%, #eef8ff 100%)";
   }, [themeMode]);
 
   const handleLogout = () => {
@@ -423,36 +408,17 @@ export default function StockDashboard() {
 
   return (
     <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600&display=swap');
-        * { box-sizing: border-box; }
-        body {
-          margin: 0;
-          padding: 0;
-          background: ${themeMode === "dark" ? "#060e17" : "linear-gradient(135deg, #eef4ff 0%, #f7f9fc 50%, #eef8ff 100%)"};
-        }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: ${themeMode === "dark" ? "#07101a" : "rgba(0, 0, 0, 0.05)"}; }
-        ::-webkit-scrollbar-thumb { background: ${themeMode === "dark" ? "#1a2a3a" : "rgba(0, 0, 0, 0.15)"}; border-radius: 2px; }
-        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
       {authLoading ? (
         <div style={{
           minHeight: "100vh", background: themeMode === "dark" ? "#060e17" : "linear-gradient(135deg, #eef4ff 0%, #f7f9fc 50%, #eef8ff 100%)", color: themeMode === "dark" ? "#cde" : "#111827",
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           fontFamily: "'DM Sans', sans-serif", gap: 16
         }}>
-          <div style={{
+          <div className="spinner" style={{
             width: 44,
             height: 44,
             border: themeMode === "dark" ? "3px solid rgba(0, 229, 160, 0.15)" : "3px solid rgba(16, 185, 129, 0.15)",
-            borderTop: themeMode === "dark" ? "3px solid #00e5a0" : "3px solid #10b981",
-            borderRadius: "50%",
-            animation: "spin 1s linear infinite"
+            borderTop: themeMode === "dark" ? "3px solid #00e5a0" : "3px solid #10b981"
           }} />
           <div style={{ fontSize: 14, letterSpacing: 0.5, fontWeight: 500 }}>
             Loading Algooee...

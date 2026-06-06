@@ -13,7 +13,7 @@ export default function DashboardHeader({
   setShowWatchlist,
   setShowTour,
   cashBalance,
-  theme
+  setAdminMobileTab
 }) {
   return (
     <div style={{
@@ -23,8 +23,8 @@ export default function DashboardHeader({
       alignItems: isMobile ? "stretch" : "center",
       justifyContent: "space-between",
       padding: isMobile ? "12px 14px" : "0 28px",
-      borderBottom: `1px solid ${theme.border}`,
-      background: theme.card,
+      borderBottom: "1px solid var(--theme-border)",
+      background: "var(--theme-card)",
       gap: isMobile ? 8 : 16,
       height: isMobile ? "auto" : "60px"
     }}>
@@ -36,8 +36,8 @@ export default function DashboardHeader({
               <img src="/logo.png" alt="ALGOOEE" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/logo.svg'; }} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
             </div>
             <div>
-              <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700, color: theme.text, letterSpacing: -0.5 }}>Algooee</span>
-              <span style={{ fontSize: 10, color: theme.text2, marginLeft: 8, letterSpacing: 2 }}>STOCK INTELLIGENCE</span>
+              <span className="mono-font" style={{ fontSize: 16, fontWeight: 700, color: "var(--theme-text)", letterSpacing: -0.5 }}>Algooee</span>
+              <span style={{ fontSize: 10, color: "var(--theme-text2)", marginLeft: 8, letterSpacing: 2 }}>STOCK INTELLIGENCE</span>
             </div>
           </div>
           <div style={{
@@ -49,48 +49,28 @@ export default function DashboardHeader({
               <button
                 id="walkthrough-nav-stock"
                 onClick={() => setActivePage("stock")}
-                style={{
-                  background: activePage === "stock" ? "#00e5a022" : "#0a1520",
-                  color: activePage === "stock" ? "#00e5a0" : "#778899",
-                  border: `1px solid ${activePage === "stock" ? "#00e5a055" : "#1a2a3a"}`,
-                  borderRadius: 8, padding: "6px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer",
-                }}
+                className={`nav-tab-btn ${activePage === "stock" ? "active" : ""}`}
               >
                 STOCK PAGE
               </button>
               <button
                 id="walkthrough-nav-options"
                 onClick={() => setActivePage("options")}
-                style={{
-                  background: activePage === "options" ? "#00e5a022" : "#0a1520",
-                  color: activePage === "options" ? "#00e5a0" : "#778899",
-                  border: `1px solid ${activePage === "options" ? "#00e5a055" : "#1a2a3a"}`,
-                  borderRadius: 8, padding: "6px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer",
-                }}
+                className={`nav-tab-btn ${activePage === "options" ? "active" : ""}`}
               >
                 OPTIONS CHAIN
               </button>
               <button
                 id="walkthrough-nav-admin"
                 onClick={() => setActivePage("admin")}
-                style={{
-                  background: activePage === "admin" ? "#00e5a022" : "#0a1520",
-                  color: activePage === "admin" ? "#00e5a0" : "#778899",
-                  border: `1px solid ${activePage === "admin" ? "#00e5a055" : "#1a2a3a"}`,
-                  borderRadius: 8, padding: "6px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer",
-                }}
+                className={`nav-tab-btn ${activePage === "admin" ? "active" : ""}`}
               >
                 ADMIN PAGE
               </button>
               {currentUser?.role === "admin" && (
                 <button
                   onClick={() => setActivePage("users")}
-                  style={{
-                    background: activePage === "users" ? "#00e5a022" : "#0a1520",
-                    color: activePage === "users" ? "#00e5a0" : "#778899",
-                    border: `1px solid ${activePage === "users" ? "#00e5a055" : "#1a2a3a"}`,
-                    borderRadius: 8, padding: "6px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer",
-                  }}
+                  className={`nav-tab-btn ${activePage === "users" ? "active" : ""}`}
                 >
                   USER MANAGEMENT
                 </button>
@@ -98,38 +78,25 @@ export default function DashboardHeader({
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {/* User Pill */}
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                background: themeMode === "light" ? "rgba(0,0,0,0.03)" : "rgba(255,255,255,0.03)",
-                border: `1px solid ${theme.border}`,
-                borderRadius: 20,
-                padding: "5px 10px",
-                fontSize: 11,
-                color: theme.text2
-              }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: theme.text2, opacity: 0.8 }}>
+              <div className="user-pill">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.8 }}>
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                   <circle cx="12" cy="7" r="4" />
                 </svg>
-                <span style={{ color: theme.text, fontWeight: 600, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <span style={{ color: "var(--theme-text)", fontWeight: 600, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {currentUser?.email}
                 </span>
               </div>
 
               {/* Wallet Pill */}
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                background: themeMode === "light" ? "rgba(0, 229, 160, 0.08)" : "rgba(0, 229, 160, 0.05)",
-                border: `1px solid ${themeMode === "light" ? "rgba(0, 229, 160, 0.3)" : "rgba(0, 229, 160, 0.2)"}`,
-                borderRadius: 20,
-                padding: "5px 10px",
-                fontSize: 11,
-                color: theme.text2
-              }}>
+              <div 
+                className="wallet-pill"
+                onClick={() => {
+                  setActivePage("admin");
+                  if (setAdminMobileTab) setAdminMobileTab("controls");
+                }}
+                style={{ cursor: "pointer" }}
+              >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#00e5a0" }}>
                   <path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4" />
                   <path d="M4 6v12c0 1.1.9 2 2 2h14v-4" />
@@ -143,46 +110,19 @@ export default function DashboardHeader({
               <button
                 id="walkthrough-tour-restart"
                 onClick={() => setShowTour(true)}
-                style={{
-                  background: themeMode === "light" ? "rgba(16, 185, 129, 0.1)" : "rgba(0, 229, 160, 0.1)",
-                  color: themeMode === "light" ? "#10b981" : "#00e5a0",
-                  border: `1px solid ${themeMode === "light" ? "rgba(16, 185, 129, 0.3)" : "rgba(0, 229, 160, 0.3)"}`,
-                  borderRadius: 8,
-                  padding: "6px 12px",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4
-                }}
+                className="tour-btn"
               >
                 <span>🚀</span> TOUR
               </button>
               <button
                 onClick={() => setThemeMode(themeMode === "dark" ? "light" : "dark")}
-                style={{
-                  background: theme.card,
-                  color: theme.text,
-                  border: `1px solid ${theme.border}`,
-                  borderRadius: 8,
-                  padding: "6px 12px",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: "pointer"
-                }}
+                className="theme-toggle-btn"
               >
                 {themeMode === "dark" ? "☀️ LIGHT" : "🌙 DARK"}
               </button>
               <button
                 onClick={onLogout}
-                style={{
-                  background: "#2a1218", color: "#f87171", border: "1px solid #f8717155",
-                  borderRadius: 8, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer",
-                  transition: "all 0.2s ease"
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "#ef4444"; e.currentTarget.style.color = "#fff"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "#2a1218"; e.currentTarget.style.color = "#f87171"; }}
+                className="logout-btn"
               >
                 LOGOUT
               </button>
@@ -198,16 +138,14 @@ export default function DashboardHeader({
               <div style={{ width: 30, height: 30, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                 <img src="/logo.png" alt="ALGOOEE" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/logo.svg'; }} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
               </div>
-              <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: theme.text }}>Algooee</span>
+              <span className="mono-font" style={{ fontSize: 15, fontWeight: 700, color: "var(--theme-text)" }}>Algooee</span>
             </div>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               {activePage === "stock" && (
                 <button
                   onClick={() => setShowWatchlist(!showWatchlist)}
-                  style={{
-                    background: theme.card2, color: "#778899", border: `1px solid ${theme.border}`,
-                    borderRadius: 6, padding: "6px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer"
-                  }}
+                  className="theme-toggle-btn"
+                  style={{ color: "#778899", padding: "6px 10px", fontSize: 10 }}
                 >
                   {showWatchlist ? "DETAILS" : "WATCHLIST"}
                 </button>
@@ -215,31 +153,23 @@ export default function DashboardHeader({
               <button
                 id="walkthrough-tour-restart"
                 onClick={() => setShowTour(true)}
-                style={{
-                  background: themeMode === "light" ? "rgba(16, 185, 129, 0.1)" : "rgba(0, 229, 160, 0.1)",
-                  color: themeMode === "light" ? "#10b981" : "#00e5a0",
-                  border: `1px solid ${themeMode === "light" ? "rgba(16, 185, 129, 0.3)" : "rgba(0, 229, 160, 0.3)"}`,
-                  borderRadius: 6, padding: "6px 8px", fontSize: 10, fontWeight: 700, cursor: "pointer"
-                }}
+                className="tour-btn"
+                style={{ padding: "6px 8px", fontSize: 10 }}
                 title="Take Onboarding Tour"
               >
                 🚀
               </button>
               <button
                 onClick={() => setThemeMode(themeMode === "dark" ? "light" : "dark")}
-                style={{
-                  background: theme.card, color: theme.text, border: `1px solid ${theme.border}`,
-                  borderRadius: 6, padding: "6px 8px", fontSize: 10, fontWeight: 700, cursor: "pointer"
-                }}
+                className="theme-toggle-btn"
+                style={{ padding: "6px 8px", fontSize: 10 }}
               >
                 {themeMode === "dark" ? "☀️" : "🌙"}
               </button>
               <button
                 onClick={onLogout}
-                style={{
-                  background: "#2a1218", color: "#f87171", border: "1px solid #f8717155",
-                  borderRadius: 6, padding: "6px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer"
-                }}
+                className="logout-btn"
+                style={{ padding: "6px 10px", fontSize: 10 }}
               >
                 LOGOUT
               </button>
@@ -250,7 +180,7 @@ export default function DashboardHeader({
           <div id="walkthrough-nav-tabs" style={{
             display: "flex",
             background: themeMode === "light" ? "rgba(0,0,0,0.03)" : "rgba(255,255,255,0.02)",
-            border: `1px solid ${theme.border}`,
+            border: "1px solid var(--theme-border)",
             borderRadius: 8,
             padding: 2
           }}>
@@ -267,20 +197,7 @@ export default function DashboardHeader({
                   setActivePage(tab.id);
                   if (tab.id === "stock") setShowWatchlist(false);
                 }}
-                style={{
-                  flex: 1,
-                  background: activePage === tab.id ? (themeMode === "light" ? "#fff" : "rgba(255,255,255,0.08)") : "transparent",
-                  color: activePage === tab.id ? theme.text : theme.text2,
-                  border: "none",
-                  borderRadius: 6,
-                  padding: "8px 4px",
-                  fontSize: 10,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  textAlign: "center",
-                  boxShadow: activePage === tab.id && themeMode === "light" ? "0 2px 4px rgba(0,0,0,0.08)" : "none",
-                  transition: "all 0.15s ease"
-                }}
+                className={`mobile-tab-btn ${activePage === tab.id ? "active" : ""}`}
               >
                 {tab.label.toUpperCase()}
               </button>
@@ -290,44 +207,25 @@ export default function DashboardHeader({
           {/* User status row */}
           <div style={{ display: "flex", gap: 6, width: "100%" }}>
             {/* User Pill */}
-            <div style={{
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 5,
-              background: themeMode === "light" ? "rgba(0,0,0,0.03)" : "rgba(255,255,255,0.03)",
-              border: `1px solid ${theme.border}`,
-              borderRadius: 16,
-              padding: "6px 8px",
-              fontSize: 10,
-              color: theme.text2,
-              overflow: "hidden"
-            }}>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: theme.text2, opacity: 0.8, flexShrink: 0 }}>
+            <div className="user-pill-mobile">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.8, flexShrink: 0 }}>
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                 <circle cx="12" cy="7" r="4" />
               </svg>
-              <span style={{ color: theme.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span style={{ color: "var(--theme-text)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {currentUser?.email}
               </span>
             </div>
 
             {/* Wallet Pill */}
-            <div style={{
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 5,
-              background: themeMode === "light" ? "rgba(0, 229, 160, 0.08)" : "rgba(0, 229, 160, 0.05)",
-              border: `1px solid ${themeMode === "light" ? "rgba(0, 229, 160, 0.3)" : "rgba(0, 229, 160, 0.2)"}`,
-              borderRadius: 16,
-              padding: "6px 8px",
-              fontSize: 10,
-              color: theme.text2,
-              flexShrink: 0
-            }}>
+            <div 
+              className="wallet-pill-mobile"
+              onClick={() => {
+                setActivePage("admin");
+                if (setAdminMobileTab) setAdminMobileTab("controls");
+              }}
+              style={{ cursor: "pointer" }}
+            >
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#00e5a0", flexShrink: 0 }}>
                 <path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4" />
                 <path d="M4 6v12c0 1.1.9 2 2 2h14v-4" />
