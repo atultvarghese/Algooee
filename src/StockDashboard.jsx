@@ -21,10 +21,20 @@ import AdminView from "./components/AdminView";
 import StockView from "./components/StockView";
 
 function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
-  const [activePage, setActivePage] = useState("stock");
+  const getInitialParams = () => {
+    const params = new URLSearchParams(window.location.search);
+    const page = params.get("page") || "stock";
+    const watchlist = params.get("watchlist") === null
+      ? (window.innerWidth <= 768)
+      : params.get("watchlist") !== "false";
+    return { page, watchlist };
+  };
+
+  const initial = getInitialParams();
+  const [activePage, setActivePage] = useState(initial.page);
   const [optionUnderlying, setOptionUnderlying] = useState("NIFTY");
   const [selectedOptionContract, setSelectedOptionContract] = useState(null);
-  const [showWatchlist, setShowWatchlist] = useState(window.innerWidth <= 768);
+  const [showWatchlist, setShowWatchlist] = useState(initial.watchlist);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
   const userOnboardingKey = `algoooeee_tour_completed_${currentUser?.id || currentUser?.email || 'guest'}`;
@@ -76,6 +86,63 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
     paperPortfolio, paperLoading, paperBusy, paperError, paperNotice,
     placePaperOrder, addPaperFunds, resetPaperAccount, clearPaperMessages
   } = usePaperTrade();
+
+  // Listen to popstate event (browser back/forward button clicks)
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const urlPage = params.get("page") || "stock";
+      const urlWatchlist = params.get("watchlist") === null
+        ? (window.innerWidth <= 768)
+        : params.get("watchlist") !== "false";
+      const urlTicker = params.get("ticker") || "";
+
+      setActivePage(urlPage);
+      setShowWatchlist(urlWatchlist);
+      if (urlTicker && setSelected) {
+        setSelected(urlTicker);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [setSelected]);
+
+  // Synchronize state changes to browser history
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlPage = params.get("page") || "stock";
+    const urlWatchlist = params.get("watchlist") === null
+      ? (window.innerWidth <= 768)
+      : params.get("watchlist") !== "false";
+    const urlTicker = params.get("ticker") || "";
+
+    const watchlistStr = String(showWatchlist);
+
+    if (activePage !== urlPage || showWatchlist !== urlWatchlist || selected !== urlTicker) {
+      const newParams = new URLSearchParams();
+      newParams.set("page", activePage);
+      newParams.set("watchlist", watchlistStr);
+      if (selected) {
+        newParams.set("ticker", selected);
+      }
+
+      const urlHasParams = window.location.search !== "";
+      if (!urlHasParams) {
+        window.history.replaceState(
+          { page: activePage, watchlist: showWatchlist, ticker: selected },
+          "",
+          `?${newParams.toString()}`
+        );
+      } else {
+        window.history.pushState(
+          { page: activePage, watchlist: showWatchlist, ticker: selected },
+          "",
+          `?${newParams.toString()}`
+        );
+      }
+    }
+  }, [activePage, showWatchlist, selected]);
 
   // Derived Values
   const data = stockData[selected];

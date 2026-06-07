@@ -19,8 +19,13 @@ async function authFetch(url, options = {}) {
 }
 
 export default function useStocks() {
+  const getInitialTicker = () => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("ticker") || "";
+  };
+
   const [stocks, setStocks] = useState([]);
-  const [selected, setSelected] = useState("");
+  const [selected, setSelected] = useState(getInitialTicker);
   const [stockData, setStockData] = useState({});
   const [loading, setLoading] = useState(false);
   const [remoteStocks, setRemoteStocks] = useState(null);
@@ -98,7 +103,10 @@ export default function useStocks() {
       setRemoteStocks(list);
       setStocks(list);
       if (list.length) {
-        if (!selected || !list.some((row) => row.ticker === selected)) {
+        const urlTicker = new URLSearchParams(window.location.search).get("ticker");
+        if (urlTicker && list.some((row) => row.ticker === urlTicker)) {
+          setSelected(urlTicker);
+        } else if (!selected || !list.some((row) => row.ticker === selected)) {
           setSelected(list[0].ticker);
         }
       } else {
