@@ -438,7 +438,7 @@ class PaperTradeStore:
                     SELECT isin, name, created_at
                     FROM watchlist_stocks
                     WHERE user_id = ? AND (isin LIKE ? OR name LIKE ?)
-                    ORDER BY name ASC
+                    ORDER BY created_at DESC
                     LIMIT ?
                     """,
                     (user_id, pattern, pattern, max(1, int(limit))),
@@ -449,7 +449,7 @@ class PaperTradeStore:
                     SELECT isin, name, created_at
                     FROM watchlist_stocks
                     WHERE user_id = ?
-                    ORDER BY name ASC
+                    ORDER BY created_at DESC
                     LIMIT ?
                     """,
                     (user_id, max(1, int(limit))),
