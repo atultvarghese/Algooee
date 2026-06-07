@@ -111,7 +111,7 @@ export default function WalkthroughTour({ themeMode, activePage, setActivePage, 
 
     // Automatically handle mobile watchlist overlay toggle
     if (isMobile && step.page === "stock") {
-      const needsWatchlist = step.targetId === "walkthrough-watchlist" || step.targetId === "walkthrough-search";
+      const needsWatchlist = step.targetId === "walkthrough-watchlist" || step.targetId === "walkthrough-search" || step.targetId === "walkthrough-tour-restart";
       if (needsWatchlist && !showWatchlist) {
         setShowWatchlist(true);
       } else if (!needsWatchlist && showWatchlist) {
