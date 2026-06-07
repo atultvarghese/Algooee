@@ -195,7 +195,7 @@ export default function DashboardHeader({
                 id={tab.tourId}
                 onClick={() => {
                   setActivePage(tab.id);
-                  if (tab.id === "stock") setShowWatchlist(false);
+                  if (tab.id === "stock") setShowWatchlist(true);
                 }}
                 className={`mobile-tab-btn ${activePage === tab.id ? "active" : ""}`}
               >

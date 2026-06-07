@@ -360,7 +360,7 @@ def _build_paper_portfolio_snapshot(user_id: int):
             }
         )
 
-    positions.sort(key=lambda row: row["market_value"], reverse=True)
+    positions.sort(key=lambda row: row["id"], reverse=True)
 
     equity = cash_balance + market_value
     total_pnl = unrealized_pnl

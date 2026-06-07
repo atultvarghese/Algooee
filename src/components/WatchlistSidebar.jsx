@@ -124,7 +124,13 @@ export default function WatchlistSidebar({
                   <button
                     onClick={async (e) => {
                       e.stopPropagation();
-                      await addWatchlistStock(item.isin, item.trading_symbol || item.name);
+                      const success = await addWatchlistStock(item.isin, item.trading_symbol || item.name);
+                      if (success) {
+                        setStockSearch("");
+                        if (isMobile) {
+                          setShowWatchlist(true);
+                        }
+                      }
                     }}
                     className="btn-add-watchlist"
                   >
