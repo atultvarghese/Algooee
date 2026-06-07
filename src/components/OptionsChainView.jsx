@@ -28,7 +28,11 @@ export default function OptionsChainView({
   formatINR,
   selectedOptionContract,
   setSelectedOptionContract,
-  isMobile = false
+  isMobile = false,
+  paperError,
+  paperNotice,
+  setActivePage,
+  setAdminMobileTab
 }) {
   const [underlying, setUnderlying] = useState(selectedUnderlying || "NIFTY");
   const [expiries, setExpiries] = useState([]);
@@ -202,7 +206,11 @@ export default function OptionsChainView({
         setTradeNotice("");
         setTradeContract(null);
         setTradeAmount("");
-      }, 2500);
+        if (tradeContract.side === "buy" && setActivePage && setAdminMobileTab) {
+          setActivePage("admin");
+          setAdminMobileTab("holdings");
+        }
+      }, 1500);
     }
   };
 
@@ -355,14 +363,18 @@ export default function OptionsChainView({
         </div>
 
         {/* Premium calculation */}
-        {tradeAmount && tradePrice && (
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#9bb0c4", marginTop: 4 }}>
-            <span>Est. Premium Cost:</span>
-            <span style={{ color: "#9fe7ff", fontWeight: 600 }}>
-              {formatINR(Number(tradeAmount) * Number(tradePrice))}
-            </span>
-          </div>
-        )}
+        {tradeAmount && tradePrice && (() => {
+          const estCost = Number(tradeAmount) * Number(tradePrice);
+          const insufficient = estCost > paper.cash_balance;
+          return (
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#9bb0c4", marginTop: 4 }}>
+              <span>Est. Premium Cost:</span>
+              <span style={{ color: insufficient ? "#ef4444" : "#9fe7ff", fontWeight: 600 }}>
+                {formatINR(estCost)} {insufficient && "⚠️ (Insufficient funds)"}
+              </span>
+            </div>
+          );
+        })()}
 
         {/* Balance view */}
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#556a84", marginTop: 4 }}>
@@ -393,6 +405,17 @@ export default function OptionsChainView({
             background: "#051612", color: "#7cfccf", border: "1px solid #00e5a033"
           }}>
             {tradeNotice}
+          </div>
+        )}
+
+        {(paperError || paperNotice) && (
+          <div style={{
+            marginTop: 10, padding: "8px 12px", borderRadius: 6, fontSize: 11, textAlign: "center",
+            background: paperError ? "#2a1218" : "#051612",
+            color: paperError ? "#fca5a5" : "#7cfccf",
+            border: `1px solid ${paperError ? "#ef444433" : "#00e5a033"}`
+          }}>
+            {paperError || paperNotice}
           </div>
         )}
       </div>

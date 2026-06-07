@@ -137,6 +137,11 @@ export default function usePaperTrade() {
     }
   }
 
+  const clearPaperMessages = () => {
+    setPaperError("");
+    setPaperNotice("");
+  };
+
   useEffect(() => {
     refreshPaperPortfolio(true);
     const timer = setInterval(() => { refreshPaperPortfolio(false); }, 30000);
@@ -145,6 +150,7 @@ export default function usePaperTrade() {
 
   return {
     paperPortfolio, paperLoading, paperBusy, paperError, paperNotice,
-    refreshPaperPortfolio, placePaperOrder, addPaperFunds, resetPaperAccount
+    refreshPaperPortfolio, placePaperOrder, addPaperFunds, resetPaperAccount,
+    clearPaperMessages
   };
 }

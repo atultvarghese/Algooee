@@ -89,10 +89,11 @@ export default function WatchlistSidebar({
               <StockCard key={s.ticker} ticker={s.ticker} themeMode={themeMode} name={s.name} meta={s} selected={selected === s.ticker}
                 data={stockData[s.ticker]} onClick={() => {
                   setSelected(s.ticker);
-                  if (activePage === "options") {
-                    setOptionUnderlying(s.ticker);
-                  } else {
+                  setOptionUnderlying(s.ticker);
+                  if (activePage !== "options") {
                     setActivePage("stock");
+                  }
+                  if (isMobile) {
                     setShowWatchlist(false);
                   }
                 }} onRemove={() => removeWatchlistStock(s.ticker)} />

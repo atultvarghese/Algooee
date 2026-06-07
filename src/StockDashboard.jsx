@@ -74,7 +74,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
 
   const {
     paperPortfolio, paperLoading, paperBusy, paperError, paperNotice,
-    placePaperOrder, addPaperFunds, resetPaperAccount
+    placePaperOrder, addPaperFunds, resetPaperAccount, clearPaperMessages
   } = usePaperTrade();
 
   // Derived Values
@@ -82,6 +82,12 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
   const meta = (remoteStocks || stocks).find(s => s.ticker === selected) || {};
   const todayPrice = data?.lastPrice ?? meta.last_price ?? null;
   const predictedVal = data?.predicted?.[0]?.price ?? null;
+
+  useEffect(() => {
+    if (clearPaperMessages) {
+      clearPaperMessages();
+    }
+  }, [activePage, selected]);
 
   useEffect(() => {
     const livePrice = Number(todayPrice ?? data?.lastPrice);
@@ -98,7 +104,15 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
     const amount = qty * executionPrice;
 
     const success = await placePaperOrder(side, selected, amount, executionPrice);
-    if (success) setTradeAmount("");
+    if (success) {
+      setTradeAmount("");
+      if (side === "buy") {
+        setTimeout(() => {
+          setActivePage("admin");
+          setAdminMobileTab("holdings");
+        }, 1500);
+      }
+    }
   };
 
   useEffect(() => {
@@ -277,6 +291,10 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
                 selectedOptionContract={selectedOptionContract}
                 setSelectedOptionContract={setSelectedOptionContract}
                 isMobile={isMobile}
+                paperError={paperError}
+                paperNotice={paperNotice}
+                setActivePage={setActivePage}
+                setAdminMobileTab={setAdminMobileTab}
               />
             </div>
           ) : activePage === "admin" ? (
@@ -334,6 +352,8 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
               theme={theme}
               glassCard={glassCard}
               isMobile={isMobile}
+              paperError={paperError}
+              paperNotice={paperNotice}
             />
           ) : null}
         </div>

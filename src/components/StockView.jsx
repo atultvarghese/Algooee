@@ -32,7 +32,9 @@ export default function StockView({
   themeMode,
   theme,
   glassCard,
-  isMobile
+  isMobile,
+  paperError,
+  paperNotice
 }) {
   if (loading && !data) {
     return (
@@ -147,9 +149,30 @@ export default function StockView({
             SELL
           </button>
         </div>
-        {tradeAmount && (
-          <div style={{ fontSize: 11, color: "var(--theme-text2)" }}>
-            Est. Cost: <span style={{ color: "#00e5a0", fontWeight: 600 }}>{formatINR(Number(tradeAmount) * Number(tradePrice || todayPrice || data.lastPrice || 0))}</span>
+        {tradeAmount && (() => {
+          const estCost = Number(tradeAmount) * Number(tradePrice || todayPrice || data.lastPrice || 0);
+          const insufficient = estCost > paper.cash_balance;
+          return (
+            <div style={{ fontSize: 11, color: "var(--theme-text2)", marginTop: 4, marginBottom: 6 }}>
+              Est. Cost: <span style={{ color: insufficient ? "#ef4444" : "#00e5a0", fontWeight: 600 }}>{formatINR(estCost)}</span>
+              {insufficient && (
+                <span style={{ color: "#ef4444", marginLeft: 8, fontWeight: 600 }}>
+                  ⚠️ Insufficient funds
+                </span>
+              )}
+            </div>
+          );
+        })()}
+        {(paperError || paperNotice) && (
+          <div style={{
+            marginTop: 8, marginBottom: 8, padding: "8px 12px", borderRadius: 6, fontSize: 11,
+            background: paperError ? "#2a1218" : "#051612",
+            color: paperError ? "#fca5a5" : "#7cfccf",
+            border: `1px solid ${paperError ? "#ef444433" : "#00e5a033"}`,
+            display: "flex", alignItems: "center", gap: 8
+          }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: paperError ? "#ef4444" : "#10b981" }} />
+            <span style={{ flex: 1 }}>{paperError || paperNotice}</span>
           </div>
         )}
         <div style={{ fontSize: 11, color: "#667788", marginBottom: 8 }}>
