@@ -527,6 +527,37 @@ async def health():
     return {"status": "healthy", "api_configured": client is not None}
 
 
+def get_today_daily_candle(client, isin: str) -> Optional[List]:
+    """Construct today's daily candle by aggregating intraday minutes."""
+    if not client:
+        return None
+    try:
+        intraday = client.get_intraday_candles(isin)
+        if not intraday:
+            return None
+        # intraday is sorted descending (newest first)
+        latest_ts = intraday[0][0] # e.g. "2026-06-08T15:29:00+05:30"
+        date_str = latest_ts.split("T")[0]
+        
+        # Filter candles for today's date
+        day_candles = [c for c in intraday if c[0].startswith(date_str)]
+        if not day_candles:
+            return None
+            
+        open_val = float(day_candles[-1][1])
+        high_val = max(float(c[2]) for c in day_candles)
+        low_val = min(float(c[3]) for c in day_candles)
+        close_val = float(day_candles[0][4])
+        volume_val = sum(int(c[5]) for c in day_candles)
+        oi_val = int(day_candles[0][6]) if len(day_candles[0]) > 6 else 0
+        
+        ts_val = f"{date_str}T00:00:00+05:30"
+        return [ts_val, open_val, high_val, low_val, close_val, volume_val, oi_val]
+    except Exception as e:
+        print(f"Error fetching/building today's candle for {isin}: {e}")
+        return None
+
+
 @app.post(
     "/api/historical-candles",
     tags=["Stock Data"],
@@ -548,6 +579,14 @@ async def get_historical_candles(request: StockPredictionRequest, current_user: 
             interval=request.interval,
             count=request.count,
         )
+
+        if request.interval == "day":
+            today_candle = get_today_daily_candle(client, request.isin)
+            if today_candle:
+                candle_date = today_candle[0].split("T")[0]
+                if not any(c[0].startswith(candle_date) for c in candles):
+                    candles.insert(0, today_candle)
+
         return HistoricalCandleResponse(
             isin=request.isin, data=candles, timestamp=request.end_date
         )
@@ -612,6 +651,13 @@ async def predict_stock(request: StockPredictionRequest, current_user: dict = De
             interval=request.interval,
             count=request.count,
         )
+
+        if request.interval == "day" and candles:
+            today_candle = get_today_daily_candle(client, request.isin)
+            if today_candle:
+                candle_date = today_candle[0].split("T")[0]
+                if not any(c[0].startswith(candle_date) for c in candles):
+                    candles.insert(0, today_candle)
 
         if not candles:
             raise HTTPException(
