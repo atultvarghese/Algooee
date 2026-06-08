@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { formatExactDateTime, formatPreciseRelativeTime } from "../utils/formatters";
+import { formatExactDateTime, formatPreciseRelativeTime, formatINR } from "../utils/formatters";
 
-export default function UserManagementView({ API_BASE, currentUser }) {
+export default function UserManagementView({ API_BASE, currentUser, isMobile }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -141,6 +141,12 @@ export default function UserManagementView({ API_BASE, currentUser }) {
     }
   };
 
+  // Summary Stats calculations
+  const totalUsers = users.length;
+  const addedFundsCount = users.filter(u => u.total_funded > 0).length;
+  const profitCount = users.filter(u => u.realized_pnl > 0).length;
+  const lossCount = users.filter(u => u.realized_pnl < 0).length;
+
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "24px" }}>
       {/* Header section */}
@@ -183,65 +189,169 @@ export default function UserManagementView({ API_BASE, currentUser }) {
         </div>
       )}
 
-      {/* Users table */}
+      {/* Summary Stats Cards */}
       <div style={{
-        background: "#08101a",
-        padding: "20px",
-        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
+        display: "grid",
+        gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
+        gap: isMobile ? "12px" : "20px"
       }}>
-        <div style={{ overflowX: "auto" }}>
-          {loading && users.length === 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px", gap: 16 }}>
-              <div style={{
-                width: 36,
-                height: 36,
-                border: "3px solid rgba(0, 229, 160, 0.15)",
-                borderTop: "3px solid #00e5a0",
-                borderRadius: "50%",
-                animation: "spin 1s linear infinite"
-              }} />
-              <div style={{ color: "#8899aa", fontSize: 13, letterSpacing: 0.5, fontWeight: 500 }}>
-                Loading users...
-              </div>
+        {/* Card 1: Total Users */}
+        <div style={{
+          background: "#08101a",
+          border: "1px solid #142234",
+          borderRadius: "12px",
+          padding: "16px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "4px",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
+        }}>
+          <span style={{ fontSize: "10px", color: "#556a84", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Total Users</span>
+          <span style={{ fontSize: "24px", color: "#fff", fontWeight: 700, fontFamily: "'Space Mono', monospace" }}>{totalUsers}</span>
+        </div>
+
+        {/* Card 2: Added Funds */}
+        <div style={{
+          background: "#08101a",
+          border: "1px solid #142234",
+          borderRadius: "12px",
+          padding: "16px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "4px",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
+        }}>
+          <span style={{ fontSize: "10px", color: "#556a84", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Added Funds</span>
+          <span style={{ fontSize: "24px", color: "#60a5fa", fontWeight: 700, fontFamily: "'Space Mono', monospace" }}>{addedFundsCount}</span>
+        </div>
+
+        {/* Card 3: In Profit */}
+        <div style={{
+          background: "#08101a",
+          border: "1px solid #142234",
+          borderRadius: "12px",
+          padding: "16px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "4px",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
+        }}>
+          <span style={{ fontSize: "10px", color: "#556a84", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>In Profit</span>
+          <span style={{ fontSize: "24px", color: "#00e5a0", fontWeight: 700, fontFamily: "'Space Mono', monospace" }}>{profitCount}</span>
+        </div>
+
+        {/* Card 4: In Loss */}
+        <div style={{
+          background: "#08101a",
+          border: "1px solid #142234",
+          borderRadius: "12px",
+          padding: "16px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "4px",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
+        }}>
+          <span style={{ fontSize: "10px", color: "#556a84", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>In Loss</span>
+          <span style={{ fontSize: "24px", color: "#f87171", fontWeight: 700, fontFamily: "'Space Mono', monospace" }}>{lossCount}</span>
+        </div>
+      </div>
+
+      {/* Users list / table container */}
+      <div>
+        {loading && users.length === 0 ? (
+          <div style={{
+            background: "#08101a",
+            padding: "40px",
+            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 16
+          }}>
+            <div style={{
+              width: 36,
+              height: 36,
+              border: "3px solid rgba(0, 229, 160, 0.15)",
+              borderTop: "3px solid #00e5a0",
+              borderRadius: "50%",
+              animation: "spin 1s linear infinite"
+            }} />
+            <div style={{ color: "#8899aa", fontSize: 13, letterSpacing: 0.5, fontWeight: 500 }}>
+              Loading users...
             </div>
-          ) : users.length > 0 ? (
-            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13px" }}>
-              <thead>
-                <tr style={{ background: "#0c1827", color: "#556a84", fontWeight: 700, textTransform: "uppercase", fontSize: "10px", letterSpacing: 1 }}>
-                  <th style={{ padding: "12px 14px", borderBottom: "1px solid #142234" }}>ID</th>
-                  <th style={{ padding: "12px 14px", borderBottom: "1px solid #142234" }}>Email / Username</th>
-                  <th style={{ padding: "12px 14px", borderBottom: "1px solid #142234" }}>Role</th>
-                  <th style={{ padding: "12px 14px", borderBottom: "1px solid #142234" }}>Created Date</th>
-                  <th style={{ padding: "12px 14px", borderBottom: "1px solid #142234", textAlign: "center" }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr key={u.id} style={{ borderBottom: "1px solid #0e1a29", color: "#cde" }}>
-                    <td style={{ padding: "14px", color: "#8899aa", fontFamily: "'Space Mono', monospace" }}>{u.id}</td>
-                    <td style={{ padding: "14px", color: "#fff", fontWeight: 600 }}>
-                      {u.email}
+          </div>
+        ) : users.length > 0 ? (
+          isMobile ? (
+            // Mobile Card List Layout
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {users.map((u) => (
+                <div key={u.id} style={{
+                  background: "#08101a",
+                  border: "1px solid #142234",
+                  borderRadius: "12px",
+                  padding: "16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
+                }}>
+                  {/* Card Header */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontWeight: 600, color: "#fff", wordBreak: "break-all", fontSize: "14px", display: "flex", alignItems: "center", gap: 6 }}>
+                      <span>{u.email}</span>
                       {u.id === currentUser.id && (
-                        <span style={{ marginLeft: 8, fontSize: 9, background: "#00e5a022", color: "#00e5a0", padding: "2px 6px", borderRadius: 4 }}>
+                        <span style={{ fontSize: 9, background: "#00e5a022", color: "#00e5a0", padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>
                           YOU
                         </span>
                       )}
-                    </td>
-                    <td style={{ padding: "14px" }}>
-                      <span style={{
-                        fontSize: 10, fontWeight: 700, textTransform: "uppercase",
-                        background: u.role === "admin" ? "#facc1515" : "#00e5a015",
-                        color: u.role === "admin" ? "#facc15" : "#00e5a0",
-                        padding: "4px 8px", borderRadius: 6
-                      }}>
-                        {u.role}
-                      </span>
-                    </td>
-                    <td style={{ padding: "14px" }}>
-                      <div style={{ color: "#fff", fontFamily: "'Space Mono', monospace" }}>{formatExactDateTime(u.created_at)}</div>
-                      <div style={{ fontSize: 10, color: "#8899aa", marginTop: 2 }}>{formatPreciseRelativeTime(u.created_at)}</div>
-                    </td>
-                    <td style={{ padding: "14px", display: "flex", gap: "8px", justifyContent: "center" }}>
+                    </div>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, textTransform: "uppercase",
+                      background: u.role === "admin" ? "#facc1515" : "#00e5a015",
+                      color: u.role === "admin" ? "#facc15" : "#00e5a0",
+                      padding: "4px 8px", borderRadius: 6
+                    }}>
+                      {u.role}
+                    </span>
+                  </div>
+
+                  {/* Card Body (Grid 2 cols) */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", background: "#050b12", padding: "12px", borderRadius: "8px" }}>
+                    <div>
+                      <div style={{ fontSize: "9px", color: "#556a84", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: "4px" }}>Financials</div>
+                      <div style={{ fontSize: "11px", color: "#cde" }}><span style={{ color: "#667788" }}>Cash: </span><span style={{ color: "#00e5a0", fontWeight: 700 }}>{formatINR(u.cash_balance)}</span></div>
+                      <div style={{ fontSize: "11px", color: "#cde" }}><span style={{ color: "#667788" }}>Funded: </span><span style={{ color: "#8899aa" }}>{formatINR(u.total_funded)}</span></div>
+                      <div style={{ fontSize: "11px" }}>
+                        <span style={{ color: "#667788" }}>P/L: </span>
+                        <span style={{ color: u.realized_pnl > 0 ? "#00e5a0" : u.realized_pnl < 0 ? "#f87171" : "#8899aa", fontWeight: 700 }}>
+                          {formatINR(u.realized_pnl)}
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "9px", color: "#556a84", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: "4px" }}>Activity</div>
+                      <div style={{ fontSize: "11px", color: "#cde", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <span style={{ color: "#667788" }}>Active: </span>
+                        {u.last_active_at ? (
+                          <span style={{ color: "#fff" }} title={formatExactDateTime(u.last_active_at)}>
+                            {formatPreciseRelativeTime(u.last_active_at)}
+                          </span>
+                        ) : (
+                          <span style={{ color: "#778899", fontStyle: "italic" }}>Never</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#cde" }}><span style={{ color: "#667788" }}>Trades: </span><span style={{ color: "#fff", fontWeight: 600 }}>{u.trades_count}</span></div>
+                      <div style={{ fontSize: "11px", color: "#cde" }}><span style={{ color: "#667788" }}>Holdings: </span><span style={{ color: "#fff", fontWeight: 600 }}>{u.holdings_count}</span></div>
+                    </div>
+                  </div>
+
+                  {/* Card Footer */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11px" }}>
+                    <div style={{ color: "#8899aa" }}>
+                      Registered: {formatPreciseRelativeTime(u.created_at)}
+                    </div>
+                    <div style={{ display: "flex", gap: "8px" }}>
                       <button
                         onClick={() => handleOpenEdit(u)}
                         style={{
@@ -266,15 +376,132 @@ export default function UserManagementView({ API_BASE, currentUser }) {
                       >
                         DELETE
                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
-            <div style={{ textAlign: "center", padding: "40px", color: "#556a84" }}>No user accounts found.</div>
-          )}
-        </div>
+            // Desktop Table Layout
+            <div style={{
+              background: "#08101a",
+              padding: "20px",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
+            }}>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13px" }}>
+                  <thead>
+                    <tr style={{ background: "#0c1827", color: "#556a84", fontWeight: 700, textTransform: "uppercase", fontSize: "10px", letterSpacing: 1 }}>
+                      <th style={{ padding: "12px 14px", borderBottom: "1px solid #142234" }}>ID</th>
+                      <th style={{ padding: "12px 14px", borderBottom: "1px solid #142234" }}>Email / Username</th>
+                      <th style={{ padding: "12px 14px", borderBottom: "1px solid #142234" }}>Role</th>
+                      <th style={{ padding: "12px 14px", borderBottom: "1px solid #142234" }}>Financials</th>
+                      <th style={{ padding: "12px 14px", borderBottom: "1px solid #142234" }}>Activity</th>
+                      <th style={{ padding: "12px 14px", borderBottom: "1px solid #142234" }}>Created Date</th>
+                      <th style={{ padding: "12px 14px", borderBottom: "1px solid #142234", textAlign: "center" }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((u) => (
+                      <tr key={u.id} style={{ borderBottom: "1px solid #0e1a29", color: "#cde" }}>
+                        <td style={{ padding: "14px", color: "#8899aa", fontFamily: "'Space Mono', monospace" }}>{u.id}</td>
+                        <td style={{ padding: "14px", color: "#fff", fontWeight: 600 }}>
+                          {u.email}
+                          {u.id === currentUser.id && (
+                            <span style={{ marginLeft: 8, fontSize: 9, background: "#00e5a022", color: "#00e5a0", padding: "2px 6px", borderRadius: 4 }}>
+                              YOU
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: "14px" }}>
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, textTransform: "uppercase",
+                            background: u.role === "admin" ? "#facc1515" : "#00e5a015",
+                            color: u.role === "admin" ? "#facc15" : "#00e5a0",
+                            padding: "4px 8px", borderRadius: 6
+                          }}>
+                            {u.role}
+                          </span>
+                        </td>
+                        <td style={{ padding: "14px" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                            <div><span style={{ color: "#667788", fontSize: "11px", fontWeight: 600 }}>Cash: </span><span style={{ color: "#00e5a0", fontWeight: 700 }}>{formatINR(u.cash_balance)}</span></div>
+                            <div><span style={{ color: "#667788", fontSize: "11px", fontWeight: 600 }}>Funded: </span><span style={{ color: "#8899aa" }}>{formatINR(u.total_funded)}</span></div>
+                            <div>
+                              <span style={{ color: "#667788", fontSize: "11px", fontWeight: 600 }}>P/L: </span>
+                              <span style={{ 
+                                color: u.realized_pnl > 0 ? "#00e5a0" : u.realized_pnl < 0 ? "#f87171" : "#8899aa", 
+                                fontWeight: 700 
+                              }}>
+                                {formatINR(u.realized_pnl)}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ padding: "14px" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                            <div>
+                              <span style={{ color: "#667788", fontSize: "11px", fontWeight: 600 }}>Last Active: </span>
+                              {u.last_active_at ? (
+                                <span style={{ color: "#fff" }} title={formatExactDateTime(u.last_active_at)}>
+                                  {formatPreciseRelativeTime(u.last_active_at)}
+                                </span>
+                              ) : (
+                                <span style={{ color: "#778899", fontStyle: "italic" }}>Never</span>
+                              )}
+                            </div>
+                            <div><span style={{ color: "#667788", fontSize: "11px", fontWeight: 600 }}>Trades: </span><span style={{ color: "#fff", fontWeight: 600 }}>{u.trades_count}</span></div>
+                            <div><span style={{ color: "#667788", fontSize: "11px", fontWeight: 600 }}>Holdings: </span><span style={{ color: "#fff", fontWeight: 600 }}>{u.holdings_count}</span></div>
+                          </div>
+                        </td>
+                        <td style={{ padding: "14px" }}>
+                          <div style={{ color: "#fff", fontFamily: "'Space Mono', monospace" }}>{formatExactDateTime(u.created_at)}</div>
+                          <div style={{ fontSize: 10, color: "#8899aa", marginTop: 2 }}>{formatPreciseRelativeTime(u.created_at)}</div>
+                        </td>
+                        <td style={{ padding: "14px", display: "flex", gap: "8px", justifyContent: "center" }}>
+                          <button
+                            onClick={() => handleOpenEdit(u)}
+                            style={{
+                              background: "#0f2030", color: "#60a5fa",
+                              border: "1px solid #3b82f644", borderRadius: 6,
+                              padding: "6px 12px", fontSize: 11, fontWeight: 600,
+                              cursor: "pointer"
+                            }}
+                          >
+                            EDIT
+                          </button>
+                          <button
+                            onClick={() => handleDelete(u.id)}
+                            disabled={u.id === currentUser.id}
+                            style={{
+                              background: "#2a1218", color: "#f87171",
+                              border: "1px solid #f8717144", borderRadius: 6,
+                              padding: "6px 12px", fontSize: 11, fontWeight: 600,
+                              cursor: u.id === currentUser.id ? "not-allowed" : "pointer",
+                              opacity: u.id === currentUser.id ? 0.4 : 1
+                            }}
+                          >
+                            DELETE
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )
+        ) : (
+          <div style={{
+            background: "#08101a",
+            padding: "40px",
+            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)",
+            textAlign: "center",
+            color: "#556a84"
+          }}>
+            No user accounts found.
+          </div>
+        )}
       </div>
 
       {/* Modal dialog */}

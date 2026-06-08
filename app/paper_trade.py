@@ -268,7 +268,23 @@ class PaperTradeStore:
 
     def list_users(self) -> List[Dict]:
         with self._connect() as conn:
-            rows = conn.execute("SELECT id, email, role, created_at FROM users ORDER BY id ASC").fetchall()
+            query = """
+                SELECT 
+                    u.id, 
+                    u.email, 
+                    u.role, 
+                    u.created_at,
+                    (SELECT MAX(s.created_at) FROM sessions s WHERE s.user_id = u.id) AS last_active_at,
+                    COALESCE(w.cash_balance, 0.0) AS cash_balance,
+                    COALESCE((SELECT SUM(wl.amount) FROM wallet_ledger wl WHERE wl.user_id = u.id AND wl.kind = 'FUND'), 0.0) AS total_funded,
+                    (SELECT COUNT(*) FROM trades t WHERE t.user_id = u.id) AS trades_count,
+                    (SELECT COUNT(*) FROM holdings h WHERE h.user_id = u.id) AS holdings_count,
+                    COALESCE((SELECT SUM(t.realized_pnl) FROM trades t WHERE t.user_id = u.id AND t.side = 'sell'), 0.0) AS realized_pnl
+                FROM users u
+                LEFT JOIN wallet w ON w.user_id = u.id
+                ORDER BY u.id ASC
+            """
+            rows = conn.execute(query).fetchall()
             return [dict(row) for row in rows]
 
     def update_user(self, user_id: int, email: Optional[str] = None, password_raw: Optional[str] = None, role: Optional[str] = None) -> None:
