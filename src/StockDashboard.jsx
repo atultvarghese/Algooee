@@ -20,7 +20,7 @@ import WatchlistSidebar from "./components/WatchlistSidebar";
 import AdminView from "./components/AdminView";
 import StockView from "./components/StockView";
 
-function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
+function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode, isNewRegistration }) {
   const getInitialParams = () => {
     const params = new URLSearchParams(window.location.search);
     const page = params.get("page") || "stock";
@@ -38,7 +38,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode }) {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
   const userOnboardingKey = `algoooeee_tour_completed_${currentUser?.id || currentUser?.email || 'guest'}`;
-  const [showTour, setShowTour] = useState(!localStorage.getItem(userOnboardingKey));
+  const [showTour, setShowTour] = useState(!!isNewRegistration && !localStorage.getItem(userOnboardingKey));
 
   const theme = themes[themeMode];
 
@@ -451,6 +451,7 @@ export default function StockDashboard() {
   const [currentUser, setCurrentUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [themeMode, setThemeMode] = useState(localStorage.getItem("theme") || "dark");
+  const [isNewRegistration, setIsNewRegistration] = useState(false);
 
   useEffect(() => {
     localStorage.setItem("theme", themeMode);
@@ -516,8 +517,14 @@ export default function StockDashboard() {
           API_BASE={API_BASE} 
           themeMode={themeMode}
           setThemeMode={setThemeMode}
-          onLoginSuccess={(token, user) => {
+          onLoginSuccess={(token, user, isRegister) => {
             localStorage.setItem("token", token);
+            if (isRegister) {
+              setIsNewRegistration(true);
+            } else {
+              const key = `algoooeee_tour_completed_${user?.id || user?.email || 'guest'}`;
+              localStorage.setItem(key, "true");
+            }
             setCurrentUser(user);
           }} 
         />
@@ -527,6 +534,7 @@ export default function StockDashboard() {
           onLogout={handleLogout} 
           themeMode={themeMode}
           setThemeMode={setThemeMode}
+          isNewRegistration={isNewRegistration}
         />
       )}
     </>
