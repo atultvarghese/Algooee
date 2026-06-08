@@ -216,38 +216,10 @@ export default function WalkthroughTour({ themeMode, activePage, setActivePage, 
     gap: 12
   };
 
-  if (!isMobile) {
-    // Web view: placed static at the bottom center of the screen
-    cardStyle.bottom = "24px";
-    cardStyle.left = "50%";
-    cardStyle.transform = "translateX(-50%)";
-  } else {
-    // Mobile view: original positioning logic
-    if (spotlightRect) {
-      const spaceBelow = window.innerHeight - (spotlightRect.y + spotlightRect.height);
-      const spaceAbove = spotlightRect.y;
-
-      let top, left;
-      if (spaceBelow > cardHeight + 20) {
-        top = spotlightRect.y + spotlightRect.height + 14;
-      } else if (spaceAbove > cardHeight + 20) {
-        top = spotlightRect.y - cardHeight - 14;
-      } else {
-        top = window.innerHeight / 2 - cardHeight / 2;
-      }
-
-      left = spotlightRect.x + spotlightRect.width / 2 - cardWidth / 2;
-      left = Math.max(16, Math.min(window.innerWidth - cardWidth - 16, left));
-
-      cardStyle.top = `${top}px`;
-      cardStyle.left = `${left}px`;
-    } else {
-      // Show in Center
-      cardStyle.top = "50%";
-      cardStyle.left = "50%";
-      cardStyle.transform = "translate(-50%, -50%)";
-    }
-  }
+  // Placed static at the bottom center of the screen for all views (mobile and web)
+  cardStyle.bottom = "24px";
+  cardStyle.left = "50%";
+  cardStyle.transform = "translateX(-50%)";
 
   return (
     <>
