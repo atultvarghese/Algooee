@@ -48,7 +48,7 @@ export default function LoginView({ onLoginSuccess, API_BASE, themeMode, setThem
 
       setNotice(isRegister ? "Registration successful! Logging in..." : "Logged in successfully.");
       setTimeout(() => {
-        onLoginSuccess(json.token, json.user);
+        onLoginSuccess(json.token, json.user, isRegister);
       }, 1000);
     } catch (err) {
       setError(err.message || "An unexpected error occurred.");
