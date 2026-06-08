@@ -10,22 +10,6 @@ Tata Consultancy Services (TCS)	INE467B01029
 ICICI Bank	INE090A01021
 State Bank of India (SBI)	INE062A01020
 Infosys	INE009A01021
-Hindustan Unilever	INE030A01027
-ITC	INE154A01025
-Mahindra & Mahindra	INE101A01026
-Kotak Mahindra Bank	INE237A01028
-HCL Technologies	INE860A01027
-Sun Pharmaceutical Industries	INE044A01036
-Axis Bank	INE238A01034
-UltraTech Cement	INE481G01011
-Titan Company	INE280A01028
-NTPC	INE733E01010
-Asian Paints	INE021A01026
-Tata Steel	INE081A01020
-Tata Consumer Products	INE192A01025
-Wipro	INE075A01022
-Adani Enterprises	INE423A01024
-Adani Ports	INE742F01042
 """
 # Define the headers based on the Upstox API documentation
 """
@@ -58,7 +42,22 @@ def check_stock(isin):
     predictor = Prediction(df)
     predictor.feature_engineering()
     X_test, y_test, preds = predictor.train_model()
-    predictor.plot_results(y_test, preds)
+
+    # Debug walk-forward prediction for the latest candle (Today) using data till yesterday
+    if not predictor.backtest_df.empty:
+        last_row = predictor.backtest_df.iloc[-1]
+        print(f"\n🔍 Debugging Walk-Forward Prediction for Last Available Candle (Today):")
+        print(f"  Target Date (Today):          {last_row['timestamp']}")
+        print(f"  Actual High (Today):          {last_row['actual_high']:.2f}")
+        print(f"  Predicted High (Today):       {last_row['predicted_high']:.2f}")
+        print(f"  Absolute Error:               {last_row['abs_error']:.2f}")
+        print(f"  Error Percentage:             {last_row['error_pct']:.2f}%")
+        hit_str = "✅ Correct" if last_row['directional_hit'] else "❌ Incorrect"
+        print(f"  Directional Move Hit:         {hit_str}")
+        print(f"  Prediction Interval:          [{last_row['p10']:.2f}, {last_row['p90']:.2f}]")
+        print("----------------------------------------------------\n")
+
+    # predictor.plot_results(y_test, preds)
     predictor.predict_next_day()
 
 

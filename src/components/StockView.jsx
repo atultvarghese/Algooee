@@ -1,7 +1,7 @@
 import React from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { formatINR, formatPercent, formatDateLabel } from "../utils/formatters";
-import { RiskMeter, ConfidenceRing, CustomTooltip } from "./CommonWidgets";
+import { RiskMeter, CustomTooltip } from "./CommonWidgets";
 
 export default function StockView({
   loading,
@@ -56,6 +56,11 @@ export default function StockView({
 
   const displayName = ((remoteStocks || stocks || []).find(s => s.ticker === selected) || {}).name || data.name || selected;
 
+  const currentPrice = todayPrice ?? data.lastPrice;
+  const isPredictionAbove = data.hasPrediction && predictedVal && currentPrice ? predictedVal > currentPrice : false;
+  const predictedLineColor = isPredictionAbove ? "#00e5a0" : "#f87171";
+  const rangeLineColor = isPredictionAbove ? "rgba(0, 229, 160, 0.45)" : "rgba(248, 113, 113, 0.45)";
+
   return (
     <>
       {data.error && (
@@ -103,7 +108,30 @@ export default function StockView({
           </div>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          {data.hasPrediction && <ConfidenceRing value={data.confidence} />}
+          {data.hasPrediction && (
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "6px 14px",
+              borderRadius: "12px",
+              background: isPredictionAbove ? "rgba(0, 229, 160, 0.12)" : "rgba(248, 113, 113, 0.12)",
+              border: `1px solid ${isPredictionAbove ? "rgba(0, 229, 160, 0.35)" : "rgba(248, 113, 113, 0.35)"}`,
+              color: isPredictionAbove ? "#00e5a0" : "#f87171",
+              fontWeight: 700,
+              fontSize: 13,
+              letterSpacing: 1
+            }}>
+              <span style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: isPredictionAbove ? "#00e5a0" : "#f87171",
+                boxShadow: `0 0 8px ${isPredictionAbove ? "#00e5a0" : "#f87171"}`
+              }} />
+              AI SIGNAL: {isPredictionAbove ? "BUY" : "SELL"}
+            </div>
+          )}
         </div>
       </div>
 
@@ -191,8 +219,8 @@ export default function StockView({
           </span>
           <div style={{ display: "flex", gap: 16, fontSize: 11 }}>
             <span style={{ color: "#4a9eff" }}>── Actual</span>
-            {data.hasPrediction && <span style={{ color: "#00e5a0" }}>── Predicted</span>}
-            {data.hasPrediction && <span style={{ color: "#7cc8ad" }}>·· Range</span>}
+            {data.hasPrediction && <span style={{ color: predictedLineColor }}>── Predicted</span>}
+            {data.hasPrediction && <span style={{ color: rangeLineColor }}>·· Range</span>}
           </div>
         </div>
         <ResponsiveContainer width="100%" height={260}>
@@ -202,10 +230,10 @@ export default function StockView({
             <YAxis tick={{ fill: "#445566", fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatINR(v)} width={68} />
             <Tooltip content={<CustomTooltip />} />
             {data.hasPrediction && <ReferenceLine x={latestActualTs} stroke="#2a3a4a" strokeDasharray="4 4" label={{ value: "NOW", fill: "#445566", fontSize: 10 }} />}
-            {data.hasPrediction && <Line type="linear" dataKey="upper" stroke="#7cc8ad" strokeWidth={1} strokeDasharray="4 4" dot={false} connectNulls={true} />}
+            {data.hasPrediction && <Line type="linear" dataKey="upper" stroke={rangeLineColor} strokeWidth={1} strokeDasharray="4 4" dot={false} connectNulls={true} />}
             <Line type="linear" dataKey="actual" stroke="#4a9eff" strokeWidth={2} dot={chartData.length <= 120} connectNulls={false} />
-            {data.hasPrediction && <Line type="linear" dataKey="predicted" stroke="#00e5a0" strokeWidth={2} dot={chartData.length <= 120} connectNulls={true} />}
-            {data.hasPrediction && <Line type="linear" dataKey="lower" stroke="#7cc8ad" strokeWidth={1} strokeDasharray="4 4" dot={false} connectNulls={true} />}
+            {data.hasPrediction && <Line type="linear" dataKey="predicted" stroke={predictedLineColor} strokeWidth={2} dot={chartData.length <= 120} connectNulls={true} />}
+            {data.hasPrediction && <Line type="linear" dataKey="lower" stroke={rangeLineColor} strokeWidth={1} strokeDasharray="4 4" dot={false} connectNulls={true} />}
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -247,73 +275,95 @@ export default function StockView({
 
       {data.hasPrediction && (
         <>
-          {/* Prediction Details */}
+          {/* AI Trade Insights */}
           <div className="glass-card" style={{ borderRadius: 16, padding: 20, marginBottom: 20 }}>
-            <div style={{ fontSize: 10, color: "var(--theme-text2)", letterSpacing: 2, marginBottom: 14 }}>PREDICTION DETAILS</div>
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(6, minmax(0, 1fr))", gap: 12, marginBottom: 16 }}>
+            <div style={{ fontSize: 10, color: "var(--theme-text2)", letterSpacing: 2, marginBottom: 14 }}>AI TRADE INSIGHTS</div>
+            
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, minmax(0, 1fr))", gap: 12, marginBottom: 16 }}>
               {[
-                { label: "Next Day Range", value: `${formatINR(data.p10)} - ${formatINR(data.p90)}`, note: "p10 to p90" },
-                { label: "Backtest MAE", value: formatINR(avgBacktestAbsError), note: `${summary.rows || backtestRows.length || 0} walk-forward rows` },
-                { label: "Backtest MAPE", value: formatPercent(summary.mape ?? data.mape), note: "Mean absolute %" },
-                { label: "Direction Hit", value: formatPercent(summary.directionalAccuracy ?? data.directionalAccuracy, 1), note: "High vs prior high" },
-                { label: "Range Cover", value: formatPercent(summary.intervalCoverage ?? data.intervalCoverage, 1), note: "Actual inside range" },
-                { label: "Model Edge", value: formatPercent(summary.modelEdgePct ?? data.modelEdgePct, 1), note: "vs simple baseline" },
+                { 
+                  label: "AI SIGNAL", 
+                  value: isPredictionAbove ? "BUY" : "SELL", 
+                  note: isPredictionAbove ? "Bullish trend predicted" : "Bearish trend predicted",
+                  color: isPredictionAbove ? "#00e5a0" : "#f87171",
+                  valBg: isPredictionAbove ? "rgba(0, 229, 160, 0.1)" : "rgba(248, 113, 113, 0.1)"
+                },
+                { 
+                  label: "BUY PRICE", 
+                  value: formatINR(currentPrice), 
+                  note: isPredictionAbove ? "Buy near current price" : "Avoid buying / Short only",
+                  color: "var(--theme-text)"
+                },
+                { 
+                  label: "STOP LOSS", 
+                  value: formatINR(
+                    isPredictionAbove 
+                      ? Math.min(currentPrice * 0.98, currentPrice - (predictedVal - currentPrice) * 0.5)
+                      : Math.max(currentPrice * 1.02, currentPrice + (currentPrice - predictedVal) * 0.5)
+                  ), 
+                  note: isPredictionAbove ? "Risk exit level (approx 2%)" : "Short exit level (approx 2%)",
+                  color: "#f87171"
+                },
+                { 
+                  label: "TARGET", 
+                  value: formatINR(predictedVal), 
+                  note: "AI forecast high target",
+                  color: "#00e5a0"
+                }
               ].map((metric) => (
-                <div key={metric.label} style={{ background: themeMode === "light" ? "rgba(255,255,255,0.45)" : "var(--theme-input)", border: "1px solid var(--theme-border)", borderRadius: 8, padding: "12px 14px" }}>
+                <div key={metric.label} style={{ 
+                  background: themeMode === "light" ? "rgba(255,255,255,0.45)" : "var(--theme-input)", 
+                  border: "1px solid var(--theme-border)", 
+                  borderRadius: 8, 
+                  padding: "12px 14px" 
+                }}>
                   <div style={{ fontSize: 10, color: "var(--theme-text2)", letterSpacing: 1, marginBottom: 6 }}>{metric.label}</div>
-                  <div className="mono-font" style={{ fontSize: 14, fontWeight: 700, color: "var(--theme-text)", marginBottom: 4 }}>{metric.value}</div>
+                  <div className="mono-font" style={{ 
+                    fontSize: 16, 
+                    fontWeight: 700, 
+                    color: metric.color, 
+                    background: metric.valBg || "transparent",
+                    padding: metric.valBg ? "2px 6px" : "0",
+                    borderRadius: metric.valBg ? "4px" : "0",
+                    display: "inline-block",
+                    marginBottom: 4 
+                  }}>{metric.value}</div>
                   <div style={{ fontSize: 10, color: "#667788" }}>{metric.note}</div>
                 </div>
               ))}
             </div>
 
-            <div style={{ border: "1px solid var(--theme-border)", borderRadius: 8, overflow: "hidden" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: 0, background: themeMode === "light" ? "linear-gradient(135deg,#1e40af,#2563eb)" : "#081321", color: themeMode === "light" ? "#ffffff" : "#667788", fontSize: 10, letterSpacing: 1, textTransform: "uppercase" }}>
-                <div style={{ padding: "10px 12px", borderRight: "1px solid var(--theme-border)" }}>Date</div>
-                <div style={{ padding: "10px 12px", borderRight: "1px solid var(--theme-border)" }}>Predicted</div>
-                <div style={{ padding: "10px 12px" }}>Range</div>
-              </div>
-              {forecastRows.length ? (
-                forecastRows.map((row) => (
-                  <div key={row.ts} style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: 0, borderTop: "1px solid var(--theme-border)", fontSize: 12 }}>
-                    <div style={{ padding: "10px 12px", borderRight: "1px solid var(--theme-border)", color: "#9bb0c4" }}>{row.dateLabel}</div>
-                    <div style={{ padding: "10px 12px", borderRight: "1px solid var(--theme-border)", color: "#00e5a0", fontWeight: 600 }}>{formatINR(row.price)}</div>
-                    <div style={{ padding: "10px 12px", color: "#7cc8ad" }}>
-                      {Number.isFinite(row.lower) && Number.isFinite(row.upper) ? `${formatINR(row.lower)} - ${formatINR(row.upper)}` : "—"}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div style={{ padding: "12px", color: "#556677", fontSize: 12 }}>No forecast data available.</div>
-              )}
-            </div>
-
-            <div style={{ overflowX: "auto" }}>
-              <div style={{ border: "1px solid var(--theme-border)", borderRadius: 8, overflow: "hidden", minWidth: isMobile ? "500px" : "auto", marginTop: 16 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 0.8fr", gap: 0, background: themeMode === "light" ? "linear-gradient(135deg,#1e40af,#2563eb)" : "#081321", color: themeMode === "light" ? "#ffffff" : "#667788", fontSize: 10, letterSpacing: 1, textTransform: "uppercase" }}>
-                  <div style={{ padding: "10px 12px", borderRight: "1px solid var(--theme-border)" }}>Backtest</div>
-                  <div style={{ padding: "10px 12px", borderRight: "1px solid var(--theme-border)" }}>Actual</div>
-                  <div style={{ padding: "10px 12px", borderRight: "1px solid var(--theme-border)" }}>Predicted</div>
-                  <div style={{ padding: "10px 12px", borderRight: "1px solid var(--theme-border)" }}>Error</div>
-                  <div style={{ padding: "10px 12px" }}>Hit</div>
+            {/* Support / Resistance Levels & Insights */}
+            <div style={{ 
+              background: themeMode === "light" ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.01)", 
+              border: "1px solid var(--theme-border)", 
+              borderRadius: 8, 
+              padding: "14px",
+              display: "flex",
+              flexDirection: isMobile ? "column" : "row",
+              justifyContent: "space-between",
+              alignItems: isMobile ? "flex-start" : "center",
+              gap: 12
+            }}>
+              <div>
+                <div style={{ fontSize: 11, color: "var(--theme-text)", fontWeight: 600, marginBottom: 4 }}>
+                  Resistance Level: <span className="mono-font" style={{ color: "#facc15" }}>{formatINR(data.p90 ?? (predictedVal * 1.01))}</span>
                 </div>
-                {backtestRows.length ? (
-                  backtestRows.map((row) => (
-                    <div key={`bt-${row.ts}`} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 0.8fr", gap: 0, borderTop: "1px solid var(--theme-border)", fontSize: 12 }}>
-                      <div style={{ padding: "9px 12px", borderRight: "1px solid var(--theme-border)", color: "#9bb0c4" }}>{row.dateLabel}</div>
-                      <div style={{ padding: "9px 12px", borderRight: "1px solid var(--theme-border)", color: "#4a9eff" }}>{formatINR(row.actual)}</div>
-                      <div style={{ padding: "9px 12px", borderRight: "1px solid var(--theme-border)", color: "#00e5a0" }}>{formatINR(row.predicted)}</div>
-                      <div style={{ padding: "9px 12px", borderRight: "1px solid var(--theme-border)", color: "#facc15" }}>
-                        {formatINR(row.absError)} {Number.isFinite(row.errorPct) ? `(${formatPercent(row.errorPct, 1)})` : ""}
-                      </div>
-                      <div style={{ padding: "9px 12px", color: row.directionalHit ? "#4ade80" : "#f87171", fontWeight: 700 }}>
-                        {row.directionalHit ? "YES" : "NO"}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div style={{ padding: "12px", color: "#556677", fontSize: 12 }}>No backtest data available.</div>
-                )}
+                <div style={{ fontSize: 11, color: "var(--theme-text2)" }}>
+                  Key support/floor level estimated at <span className="mono-font">{formatINR(data.p10 ?? (currentPrice * 0.995))}</span>.
+                </div>
+              </div>
+              <div style={{ 
+                fontSize: 11, 
+                color: isPredictionAbove ? "#4ade80" : "#f87171", 
+                background: isPredictionAbove ? "rgba(74, 222, 128, 0.08)" : "rgba(248, 113, 113, 0.08)",
+                padding: "8px 12px",
+                borderRadius: "6px",
+                border: `1px solid ${isPredictionAbove ? "rgba(74, 222, 128, 0.15)" : "rgba(248, 113, 113, 0.15)"}`
+              }}>
+                <strong>Outlook:</strong> {isPredictionAbove 
+                  ? "Bullish projection. Consider initiating buy trades near current levels." 
+                  : "Bearish/Neutral pressure. Avoid buying or look for shorting opportunities."}
               </div>
             </div>
           </div>
@@ -339,14 +389,33 @@ export default function StockView({
               </div>
             </div>
             <div className="glass-card" style={{ borderRadius: 16, padding: 18 }}>
-              <div style={{ fontSize: 10, color: "var(--theme-text2)", letterSpacing: 2, marginBottom: 12 }}>MODEL CONFIDENCE</div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginTop: 8 }}>
-                <ConfidenceRing value={data.confidence} />
+              <div style={{ fontSize: 10, color: "var(--theme-text2)", letterSpacing: 2, marginBottom: 12 }}>TRADE RECOMMENDATION</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 8 }}>
+                <div style={{
+                  width: 50,
+                  height: 50,
+                  borderRadius: "50%",
+                  background: isPredictionAbove ? "rgba(0, 229, 160, 0.15)" : "rgba(248, 113, 113, 0.15)",
+                  border: `2px solid ${isPredictionAbove ? "#00e5a0" : "#f87171"}`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 16,
+                  fontWeight: 900,
+                  color: isPredictionAbove ? "#00e5a0" : "#f87171",
+                  boxShadow: `0 0 10px ${isPredictionAbove ? "rgba(0, 229, 160, 0.2)" : "rgba(248, 113, 113, 0.2)"}`
+                }}>
+                  {isPredictionAbove ? "▲" : "▼"}
+                </div>
                 <div>
-                  <div className="mono-font" style={{ fontSize: 22, fontWeight: 700, color: "#00e5a0" }}>{Math.round(Number(data.confidence) || 0)}%</div>
-                  <div style={{ fontSize: 11, color: "var(--theme-text2)", marginTop: 4 }}>Prediction confidence</div>
-                  <div style={{ fontSize: 11, color: data.confidence > 75 ? "#4ade80" : data.confidence > 55 ? "#facc15" : "#f87171", marginTop: 2 }}>
-                    {data.confidence > 75 ? "● High confidence" : data.confidence > 55 ? "● Moderate" : "● Low confidence"}
+                  <div className="mono-font" style={{ fontSize: 22, fontWeight: 800, color: isPredictionAbove ? "#00e5a0" : "#f87171" }}>
+                    {isPredictionAbove ? "BUY" : "SELL"}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--theme-text2)", marginTop: 4 }}>
+                    Based on next-day prediction ({isPredictionAbove ? "growth" : "decline"})
+                  </div>
+                  <div style={{ fontSize: 11, color: isPredictionAbove ? "#4ade80" : "#f87171", marginTop: 2 }}>
+                    ● {isPredictionAbove ? "Bullish Signal" : "Bearish Signal"}
                   </div>
                 </div>
               </div>
