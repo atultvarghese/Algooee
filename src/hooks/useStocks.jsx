@@ -191,8 +191,8 @@ export default function useStocks() {
     }
   }
 
-  async function loadStock(ticker) {
-    if (!ticker || stockData[ticker]) return;
+  async function loadStock(ticker, force = false) {
+    if (!ticker || (stockData[ticker] && !force)) return;
     setLoading(true);
     try {
       const isin = ticker;
@@ -285,6 +285,9 @@ export default function useStocks() {
     setPredictLoading(true);
     setPredictError("");
     try {
+      // Refresh history data first so they are perfectly aligned
+      await loadStock(ticker, true);
+
       const isin = ticker;
       const end = new Date();
       const start = new Date();
@@ -293,7 +296,7 @@ export default function useStocks() {
       const predResp = await authFetch(`${API_BASE}/api/predict`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isin, start_date: formatLocalDate(start), end_date: formatLocalDate(end), interval: "day", count: 1, forecast_days: 1, backtest_days: 30 }),
+        body: JSON.stringify({ isin, start_date: formatLocalDate(start), end_date: formatLocalDate(end), interval: "day", count: 1, forecast_days: 1, backtest_days: 15 }),
       });
       if (!predResp.ok) throw new Error(`Prediction fetch failed: ${predResp.status}`);
       const predJson = await predResp.json();

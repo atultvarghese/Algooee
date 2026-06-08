@@ -9,6 +9,40 @@ from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
+from joblib import Parallel, delayed
+
+
+def _fit_and_predict_backtest_step(test_idx, X, y, candidate_models_func, df_high, target_timestamp):
+    # Slice train data
+    X_train, y_train = X.iloc[:test_idx], y.iloc[:test_idx]
+    X_test = X.iloc[test_idx : test_idx + 1]
+    
+    # Generate weights
+    sample_weight = np.linspace(0.55, 1.0, num=len(X_train))
+    
+    # Fit models and make predictions
+    preds = {}
+    for name, model in candidate_models_func():
+        cloned = clone(model)
+        try:
+            cloned.fit(X_train.to_numpy(dtype=float), y_train.to_numpy(dtype=float), sample_weight=sample_weight)
+        except (TypeError, ValueError):
+            if hasattr(cloned, "named_steps") and "ridge" in cloned.named_steps:
+                cloned.fit(X_train.to_numpy(dtype=float), y_train.to_numpy(dtype=float), ridge__sample_weight=sample_weight)
+            else:
+                cloned.fit(X_train.to_numpy(dtype=float), y_train.to_numpy(dtype=float))
+        
+        pred_val = float(cloned.predict(X_test.to_numpy(dtype=float))[0])
+        preds[name] = pred_val
+        
+    return {
+        "timestamp": target_timestamp.iloc[test_idx],
+        "actual_high": float(y.iloc[test_idx]),
+        "previous_high": float(df_high.iloc[test_idx]),
+        "predictions": preds,
+        "naive_high": float(df_high.iloc[test_idx]),
+        "recent_high_mean": float(df_high.iloc[max(0, test_idx - 4) : test_idx + 1].mean()),
+    }
 
 
 class Prediction:
@@ -162,21 +196,21 @@ class Prediction:
                 "boosted_trees",
                 HistGradientBoostingRegressor(
                     loss="squared_error",
-                    learning_rate=0.055,
-                    max_depth=5,
-                    max_iter=180,
-                    l2_regularization=0.12,
+                    learning_rate=0.1,
+                    max_depth=3,
+                    max_iter=50,
+                    l2_regularization=0.1,
                     random_state=42,
                 ),
             ),
             (
                 "extra_trees",
                 ExtraTreesRegressor(
-                    n_estimators=96,
+                    n_estimators=30,
                     min_samples_leaf=3,
-                    max_features=0.82,
+                    max_features=0.8,
                     random_state=42,
-                    n_jobs=-1,
+                    n_jobs=1,
                 ),
             ),
             ("ridge_trend", make_pipeline(StandardScaler(), Ridge(alpha=18.0))),
@@ -348,33 +382,35 @@ class Prediction:
         min_train_size = max(70, min(int(len(X) * 0.58), len(X) - 8))
         start_idx = max(min_train_size, len(X) - max_points)
 
+        steps = list(range(start_idx, len(X)))
+        
+        # Parallelize the walk-forward steps using thread pool to avoid process spawning overhead
+        results = Parallel(n_jobs=-1, prefer="threads")(
+            delayed(_fit_and_predict_backtest_step)(
+                test_idx, X, y, self._candidate_models, self.df["High"], self.df["Target_Timestamp"]
+            )
+            for test_idx in steps
+        )
+
         rows = []
         model_errors = {name: [] for name, _ in self._candidate_models()}
         candidate_prediction_rows = []
 
-        for test_idx in range(start_idx, len(X)):
-            X_train, y_train = X.iloc[:test_idx], y.iloc[:test_idx]
-            X_test = X.iloc[test_idx : test_idx + 1]
-            fitted_models = self._fit_candidate_models(X_train, y_train)
-
-            candidate_predictions = {}
-            for name, model in fitted_models:
-                pred = float(model.predict(X_test.to_numpy(dtype=float))[0])
-                candidate_predictions[name] = pred
-                model_errors[name].append(abs(float(y.iloc[test_idx]) - pred))
-
-            candidate_prediction_rows.append(candidate_predictions)
-            rows.append(
-                {
-                    "timestamp": self.df["Target_Timestamp"].iloc[test_idx],
-                    "actual_high": float(y.iloc[test_idx]),
-                    "previous_high": float(self.df["High"].iloc[test_idx]),
-                    "naive_high": float(self.df["High"].iloc[test_idx]),
-                    "recent_high_mean": float(
-                        self.df["High"].iloc[max(0, test_idx - 4) : test_idx + 1].mean()
-                    ),
-                }
-            )
+        for res in results:
+            preds = res["predictions"]
+            candidate_prediction_rows.append(preds)
+            actual_high = res["actual_high"]
+            
+            for name in model_errors:
+                model_errors[name].append(abs(actual_high - preds[name]))
+                
+            rows.append({
+                "timestamp": res["timestamp"],
+                "actual_high": actual_high,
+                "previous_high": res["previous_high"],
+                "naive_high": res["naive_high"],
+                "recent_high_mean": res["recent_high_mean"],
+            })
 
         model_mae = {
             name: float(np.mean(errors)) if errors else float("inf")
