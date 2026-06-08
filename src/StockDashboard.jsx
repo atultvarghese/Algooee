@@ -342,7 +342,7 @@ function DashboardContent({ currentUser, onLogout, themeMode, setThemeMode, isNe
             </button>
           )}
           {activePage === "users" ? (
-            <UserManagementView API_BASE={API_BASE} currentUser={currentUser} />
+            <UserManagementView API_BASE={API_BASE} currentUser={currentUser} isMobile={isMobile} />
           ) : activePage === "options" ? (
             <div id="walkthrough-options-grid">
               <OptionsChainView
