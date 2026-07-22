@@ -1,71 +1,101 @@
 # This is a sample Python script.
 import pandas as pd
 
-from app.app import UpstoxClient
-from core.prediction import Prediction
+# pyrefly: ignore [missing-import]
+from fetch_stock_history import fetch_stock_history 
+# pyrefly: ignore [missing-import]
+from fetch_options_history import fetch_option_history
 
-company_isin = """Reliance Industries	INE002A01018
-Bharti Airtel	INE397D01024
-Tata Consultancy Services (TCS)	INE467B01029
-ICICI Bank	INE090A01021
-State Bank of India (SBI)	INE062A01020
-Infosys	INE009A01021
-"""
-# Define the headers based on the Upstox API documentation
-"""
-data.candle[0]	Timestamp: Indicating the start time of the candle's timeframe.
-data.candle[1]	Open: The opening price of the asset for the given timeframe.
-data.candle[2]	High: The highest price at which the asset traded during the timeframe.
-data.candle[3]	Low: The lowest price at which the asset traded during the timeframe.
-data.candle[4]	Close: The closing price of the asset for the given timeframe.
-data.candle[5]	Volume: The total amount of the asset that was traded during the timeframe.
-data.candle[6]	Open Interest: The total number of outstanding derivative contracts, 
-                such as options or futures.
-"""
-headers = ["Timestamp", "Open", "High", "Low", "Close", "Volume", "Open Interest"]
-
-client = UpstoxClient()
+# df, start, end = fetch_stock_history("INE064C01022") #trident
+# df, start, end = fetch_stock_history("INE040A01034") #hdfc
+df, start, end = fetch_stock_history("INE335Y01020", days=31) #irctc
 
 
-def check_stock(isin):
+print(start, end)
+print(df.head())
 
-    candles = client.get_historical_candles(
-        isin=isin,
-        start_date="2025-01-01",
-        end_date="2025-10-28",
-        interval="day",
-        count=1,
-    )
+# 2. Convert Timestamp to datetime objects and sort
+df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+df = df.sort_values('Timestamp')
 
-    df = pd.DataFrame(candles, columns=headers)
-    # print(df)
-    predictor = Prediction(df)
-    predictor.feature_engineering()
-    X_test, y_test, preds = predictor.train_model()
+# 3. Group the data by Date
+grouped = df.groupby(df['Timestamp'].dt.date)
 
-    # Debug walk-forward prediction for the latest candle (Today) using data till yesterday
-    if not predictor.backtest_df.empty:
-        last_row = predictor.backtest_df.iloc[-1]
-        print(f"\n🔍 Debugging Walk-Forward Prediction for Last Available Candle (Today):")
-        print(f"  Target Date (Today):          {last_row['timestamp']}")
-        print(f"  Actual High (Today):          {last_row['actual_high']:.2f}")
-        print(f"  Predicted High (Today):       {last_row['predicted_high']:.2f}")
-        print(f"  Absolute Error:               {last_row['abs_error']:.2f}")
-        print(f"  Error Percentage:             {last_row['error_pct']:.2f}%")
-        hit_str = "✅ Correct" if last_row['directional_hit'] else "❌ Incorrect"
-        print(f"  Directional Move Hit:         {hit_str}")
-        print(f"  Prediction Interval:          [{last_row['p10']:.2f}, {last_row['p90']:.2f}]")
-        print("----------------------------------------------------\n")
+results = []
+second_index = 4
 
-    # predictor.plot_results(y_test, preds)
-    predictor.predict_next_day()
+for date, group in grouped:
+    # Reset index for easy iloc access
+    group = group.reset_index(drop=True)
+    
+    # Get the first 5-minute candle
+    first_candle = group.iloc[0]
+    second_candle = group.iloc[second_index] if len(group) > second_index else None
+    first_open = first_candle['Close']
+    first_close = second_candle['Close']
+    
+    # Determine trend (Up if Close > Open, else Down)
+    is_uptrend = first_close > first_open
+    trend = "Up" if is_uptrend else "Down"
+    
+    max_high_after = None
+    max_low_after = None
+    upward_move = 0.0
+    downward_move = 0.0
+    
+    # If Uptrend, calculate how much further it goes up
+    if len(group) > 1:
+        # Get all candles after the first one
+        remaining_candles = group.iloc[second_index + 1:]
+        
+        # Find the max high of the remaining day
+        max_high_after = remaining_candles['Close'].max()
+        min_low_after = remaining_candles['Close'].min()
+        
+        # Calculate the absolute upward move from the first candle's close
+        upward_move = max_high_after - first_close
+        downward_move = min_low_after - first_close
 
+
+
+    results.append({
+        'Date': date,
+        'First_Candle_Trend': trend,
+        'First_Close': first_close,
+        'Remaining_Day_High': max_high_after,
+        'Remaining_Day_Low': min_low_after,
+        'Additional_Upward_Move': round(upward_move, 2),
+        'Additional_Downward_Move': round(downward_move, 2)
+    })
+
+# 4. Convert results to a DataFrame for easy viewing
+results_df = pd.DataFrame(results)
+print(results_df)
+
+# 1. Filter the DataFrame for days where the first candle was 'Up'
+up_trend_df = results_df[results_df['First_Candle_Trend'] == 'Up']
+
+# 2. Calculate Min and Max for the Additional Upward Move
+max_upward_push = up_trend_df['Additional_Upward_Move'].max()
+min_upward_push = up_trend_df['Additional_Upward_Move'].min()
+
+# 3. Calculate Min and Max for the Additional Downward Move (Drawdown)
+# Note: Since drawdowns are negative, min() is the largest drop, and max() is the smallest drop.
+worst_drawdown = up_trend_df['Additional_Downward_Move'].min()
+least_drawdown = up_trend_df['Additional_Downward_Move'].max()
+
+# Print the results
+print(f"--- UP TREND DAYS ANALYSIS ({len(up_trend_df)} days) ---")
+print(f"Largest Upward Move:  +{max_upward_push}")
+print(f"Smallest Upward Move: +{min_upward_push}")
+print(f"Worst Drawdown:       {worst_drawdown}")
+print(f"Smallest Drawdown:    {least_drawdown}")
+
+# df2, c, start, end = fetch_option_history(strike=24100)
+# print(df2, c, start, end)
 
 if __name__ == "__main__":
-    for stock in company_isin.splitlines():
-        print("---" * 8, stock, "---" * 8)
-        isin = stock.strip().split("	")[-1]
-        print(isin)
-        check_stock(isin)
-        # break
-    check_stock("INE064C01022")
+    pass
+
+    
+

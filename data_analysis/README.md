@@ -18,7 +18,7 @@ UPSTOX_ANALYTICS_TOKEN=your_upstox_api_token_here
 Run commands from the project root:
 
 ```bash
-cd /Users/atultvarghese/Documents/Repos/Algoooeee
+cd Algoooeee
 ```
 
 ## Stock Historical Data
